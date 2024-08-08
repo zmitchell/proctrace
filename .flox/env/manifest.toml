@@ -1,0 +1,43 @@
+version = 1
+
+[install]
+# Rust toolchain
+cargo.pkg-path = "cargo"
+cargo.pkg-group = "rust-toolchain"
+rustc.pkg-path = "rustc"
+rustc.pkg-group = "rust-toolchain"
+clippy.pkg-path = "clippy"
+clippy.pkg-group = "rust-toolchain"
+rustfmt.pkg-path = "rustfmt"
+rustfmt.pkg-group = "rust-toolchain"
+rust-lib-src.pkg-path = "rustPlatform.rustLibSrc"
+rust-lib-src.pkg-group = "rust-toolchain"
+
+# rust-analyzer goes in its own group because it's updated
+# on a different cadence from the compiler and doesn't need
+# to match versions
+rust-analyzer.pkg-path = "rust-analyzer"
+rust-analyzer.pkg-group = "rust-analyzer"
+
+# Linker
+gcc.pkg-path = "gcc"
+gcc.systems = ["aarch64-linux", "x86_64-linux"]
+
+# Extra tools
+cargo-nextest.pkg-path = "cargo-nextest"
+bpftrace.pkg-path = "bpftrace"
+just.pkg-path = "just"
+mermaid-cli.pkg-path = "mermaid-cli"
+
+[vars]
+
+[hook]
+on-activate = '''
+  export RUST_SRC_PATH="$FLOX_ENV"
+'''
+
+[profile]
+
+[options]
+systems = ["aarch64-linux", "x86_64-linux"]
+
