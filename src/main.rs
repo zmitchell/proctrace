@@ -621,6 +621,7 @@ fn print_spans_for_process(proc_events: &[Event], buf: &mut String, initial_time
                 None,
             );
         }
+        buf.push_str("    section other\n");
     } else {
         let start = proc_events.first().unwrap();
         let label = if proc_events.get(1).unwrap().is_exec() {
