@@ -579,9 +579,6 @@ fn next_child_pid(parent: i32, events: &BTreeMap<i32, Vec<Event>>) -> Option<i32
 }
 
 fn print_spans_for_process(proc_events: &[Event], buf: &mut String, initial_time: u128) {
-    for e in proc_events.iter() {
-        eprintln!("{e:?}");
-    }
     let default_length_limit = 200;
     let num_execs = num_execs(proc_events);
     if num_execs > 1 {
