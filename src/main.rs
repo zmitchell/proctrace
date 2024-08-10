@@ -19,41 +19,95 @@ type Error = anyhow::Error;
 const SCRIPT: &'static str = r#"
 BEGIN {}
 
-tracepoint:sched:sched_process_fork
-{
-	$task = (struct task_struct *)curtask;
-	if ($task->pid == $task->tgid) {
-    	printf("FORK: ts=%u,parent_pid=%d,child_pid=%d,parent_pgid=%d\n", elapsed, args.parent_pid, args.child_pid, $task->group_leader->pid);
-	}
-}
-
-tracepoint:syscalls:sys_exit_exec*
-{
-	$task = (struct task_struct *)curtask;
-	printf("EXEC: ts=%u,pid=%d,ppid=%d,pgid=%d\n", elapsed, pid, $task->real_parent->pid, $task->group_leader->pid);
-}
-
-//tracepoint:sched:sched_process_exit
-tracepoint:syscalls:sys_enter_exit*
+tracepoint:syscalls:sys_enter_clone
 {
 	$task = (struct task_struct *)curtask;
 	// Ensures that we don't record threads exiting
 	if ($task->pid == $task->tgid) {
-    	printf("EXIT: ts=%u,pid=%d,ppid=%d,pgid=%d\n", elapsed, pid, $task->real_parent->pid, $task->group_leader->pid);
+	    // Ensures that we don't process forks of threads
+	    if (args.clone_flags & 0x00010000 == 0) {
+			// Store the PID to be looked up later
+			@clones[$task->tgid] = 1;
+		}
     }
 }
+
+tracepoint:syscalls:sys_exit_clone
+{
+	$task = (struct task_struct *)curtask;
+	// Ensures that we don't record threads exiting
+	if ($task->pid == $task->tgid) {
+	    // Don't process this clone unless we've recorded the `enter` side of it
+		if (@clones[tid] != 0) {
+			@clones[tid] = 0;
+			$child_pid = args.ret;
+			printf("FORK: ts=%u,parent_pid=%d,child_pid=%d,parent_pgid=%d,\n", elapsed, $task->tgid, $child_pid, $task->real_parent->tgid);
+		}
+    }
+}
+
+tracepoint:syscalls:sys_enter_clone3
+{
+	$task = (struct task_struct *)curtask;
+	// Ensures that we don't record a clone unless it's a process
+	if ($task->pid == $task->tgid) {
+		// Ensures that we don't record a fork of a thread
+		if (args.uargs->flags & 0x00010000 == 0) {
+			@clones[tid] = 1;
+		}
+    }
+}
+
+tracepoint:syscalls:sys_exit_clone3
+{
+	$task = (struct task_struct *)curtask;
+	// Ensures that we don't record a clone unless it's a process
+	if ($task->pid == $task->tgid) {
+		// Don't process this clone unless we've seen the `enter` side of it
+		if (@clones[tid] != 0) {
+			@clones[tid] = 0;
+			$child_pid = args.ret;
+			printf("FORK: ts=%u,parent_pid=%d,child_pid=%d,parent_pgid=%d,\n", elapsed, $task->tgid, $child_pid, $task->real_parent->tgid);
+		}
+    }
+}
+
+
+tracepoint:syscalls:sys_enter_execve
+{
+	$task = (struct task_struct *)curtask;
+	printf("EXEC: ts=%u,pid=%d,ppid=%d,pgid=%d\n", elapsed, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
+}
+
+tracepoint:sched:sched_process_exit
+{
+	$task = (struct task_struct *)curtask;
+	// Ensures that we don't record threads exiting
+	if ($task->pid == $task->tgid) {
+    	printf("EXIT: ts=%u,pid=%d,ppid=%d,pgid=%d\n", elapsed, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
+    }
+}
+
+// tracepoint:syscalls:sys_enter_exit_group
+// {
+// 	$task = (struct task_struct *)curtask;
+// 	// Ensures that we don't record threads exiting
+// 	if ($task->pid == $task->tgid) {
+//     	printf("EXIT: ts=%u,pid=%d,ppid=%d,pgid=%d,GROUP\n", elapsed, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
+//     }
+// }
 
 uretprobe:libc:setsid
 {
 	$task = (struct task_struct *)curtask;
 	$session = retval;
-	printf("SETSID: ts=%u,pid=%d,ppid=%d,pgid=%d,sid=%d\n", elapsed, pid, $task->real_parent->pid, $task->group_leader->pid,$session);
+	printf("SETSID: ts=%u,pid=%d,ppid=%d,pgid=%d,sid=%d\n", elapsed, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid,$session);
 }
 
 uretprobe:libc:setpgid
 {
 	$task = (struct task_struct *)curtask;
-	printf("SETPGID: ts=%u,pid=%d,ppid=%d,pgid=%d\n", elapsed, pid, $task->real_parent->pid, $task->group_leader->pid);
+	printf("SETPGID: ts=%u,pid=%d,ppid=%d,pgid=%d\n", elapsed, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
 }
 "#;
 
@@ -228,6 +282,9 @@ fn main() -> Result<(), Error> {
             continue;
         }
         let line = line.unwrap();
+        if args.debug {
+            eprintln!("RX: {}", line);
+        }
         match parse_line(
             &line,
             &fork_regex,
@@ -249,11 +306,23 @@ fn main() -> Result<(), Error> {
                 child = None;
             }
         }
+
+        // Print the outstanding processes
         if args.debug {
-            eprintln!("LAST_EVENT");
-            for events in proc_events.values() {
-                eprintln!("{:?}", events.last().unwrap());
-            }
+            let remaining_pids = proc_events
+                .values()
+                .filter_map(|events| match events.last() {
+                    Some(ev) => match ev {
+                        Event::Fork { child_pid, .. } => Some(child_pid),
+                        Event::Exec { pid, .. } => Some(pid),
+                        Event::Exit { .. } => None,
+                        Event::SetSID { pid, .. } => Some(pid),
+                        Event::SetPGID { pid, .. } => Some(pid),
+                    },
+                    None => None,
+                })
+                .collect::<Vec<_>>();
+            eprintln!("{remaining_pids:?}");
         }
         if !proc_events.is_empty()
             && proc_events
