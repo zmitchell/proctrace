@@ -1,0 +1,81 @@
+tracepoint:syscalls:sys_enter_clone
+{
+	$task = (struct task_struct *)curtask;
+	// Ensures that we don't record threads exiting
+	if ($task->pid == $task->tgid) {
+	    // Ensures that we don't process forks of threads
+	    if (args.clone_flags & 0x00010000 == 0) {
+			// Store the PID to be looked up later
+			@clones[$task->tgid] = 1;
+		}
+    }
+}
+
+tracepoint:syscalls:sys_exit_clone
+{
+	$task = (struct task_struct *)curtask;
+	// Ensures that we don't record threads exiting
+	if ($task->pid == $task->tgid) {
+	    // Don't process this clone unless we've recorded the `enter` side of it
+		if (@clones[tid] != 0) {
+			@clones[tid] = 0;
+			$child_pid = args.ret;
+			printf("FORK: ts=%u,parent_pid=%d,child_pid=%d,parent_pgid=%d,\n", elapsed, $task->tgid, $child_pid, $task->real_parent->tgid);
+		}
+    }
+}
+
+tracepoint:syscalls:sys_enter_clone3
+{
+	$task = (struct task_struct *)curtask;
+	// Ensures that we don't record a clone unless it's a process
+	if ($task->pid == $task->tgid) {
+		// Ensures that we don't record a fork of a thread
+		if (args.uargs->flags & 0x00010000 == 0) {
+			@clones[tid] = 1;
+		}
+    }
+}
+
+tracepoint:syscalls:sys_exit_clone3
+{
+	$task = (struct task_struct *)curtask;
+	// Ensures that we don't record a clone unless it's a process
+	if ($task->pid == $task->tgid) {
+		// Don't process this clone unless we've seen the `enter` side of it
+		if (@clones[tid] != 0) {
+			@clones[tid] = 0;
+			$child_pid = args.ret;
+			printf("FORK: ts=%u,parent_pid=%d,child_pid=%d,parent_pgid=%d,\n", elapsed, $task->tgid, $child_pid, $task->real_parent->tgid);
+		}
+    }
+}
+
+
+tracepoint:syscalls:sys_enter_execve
+{
+	$task = (struct task_struct *)curtask;
+	printf("EXEC: ts=%u,pid=%d,ppid=%d,pgid=%d\n", elapsed, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
+}
+
+tracepoint:sched:sched_process_exit
+{
+	$task = (struct task_struct *)curtask;
+	// Ensures that we don't record threads exiting
+	if ($task->pid == $task->tgid) {
+    	printf("EXIT: ts=%u,pid=%d,ppid=%d,pgid=%d\n", elapsed, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
+    }
+}
+
+uretprobe:libc:setsid
+{
+	$task = (struct task_struct *)curtask;
+	$session = retval;
+	printf("SETSID: ts=%u,pid=%d,ppid=%d,pgid=%d,sid=%d\n", elapsed, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid,$session);
+}
+
+uretprobe:libc:setpgid
+{
+	$task = (struct task_struct *)curtask;
+	printf("SETPGID: ts=%u,pid=%d,ppid=%d,pgid=%d\n", elapsed, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
+}
