@@ -30,7 +30,26 @@ impl std::fmt::Display for DisplayMode {
 
 #[derive(Debug, Clone, PartialEq, Eq, Subcommand)]
 pub enum Command {
+    /// Record the process lifecycle events from a command.
+    ///
+    /// Note that this uses `bpftrace` under the hood, and will try to run it
+    /// with superuser priviledges (but will not run any other commands with
+    /// elevated priviledges). Depending on how you've installed `bpftrace` it
+    /// may not be in the PATH of the superuser. If this is the case then you
+    /// can use the `--bpftrace-path` flag to specify it manually. This is likely
+    /// the case if you've installed `bpftrace` via `flox` or `nix profile install`.
     Record(RecordArgs),
+
+    /// Sort the output from a recording.
+    ///
+    /// The events persisted in a recording may not arrive in timestamp order.
+    /// This command reads the events in a recording and sorts them by timestamp.
+    /// You don't need to do this yourself unless you want to look at the raw recording data,
+    /// the `render` command will automatically sort the events before rendering
+    /// the output.
+    Sort(SortArgs),
+
+    /// Render the recording in the specified display format.
     Render(RenderArgs),
 }
 
@@ -71,6 +90,24 @@ pub struct RecordArgs {
     /// it behaves as you expect.
     #[arg(last = true, value_name = "CMD")]
     pub cmd: Vec<String>,
+}
+
+#[derive(Debug, Clone, Args, PartialEq, Eq)]
+pub struct SortArgs {
+    /// The location where an event recording should be read from.
+    ///
+    /// Must either be a path to a file or '-' to read from stdin.
+    #[arg(short, long = "input", help = "The path to the event data file")]
+    pub input_path: PathBuf,
+
+    /// Write the output to a file
+    #[arg(
+        short,
+        long = "output",
+        help = "Where to write the output (printed to stdout if omitted).",
+        value_name = "PATH"
+    )]
+    pub output_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Args, PartialEq, Eq)]

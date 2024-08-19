@@ -1,11 +1,13 @@
 use crate::cli::Cli;
 use clap::Parser;
 use cli::Command;
+use models::Event;
 use record::record;
 use render::render;
+use serde_json::Deserializer;
 use std::{
     fs::OpenOptions,
-    io::{stdin, stdout, BufReader, BufWriter},
+    io::{stdin, stdout, BufReader, BufWriter, Write},
     path::Path,
     sync::{atomic::AtomicBool, Arc},
 };
@@ -64,6 +66,40 @@ fn main() -> Result<(), Error> {
                     writer,
                 )
                 .context("failed while recording events")?;
+            }
+        }
+        Command::Sort(args) => {
+            let input_path = make_path_absolute(&args.input_path)?;
+            let file = std::fs::File::open(&input_path).context("failed to open input file")?;
+            let reader = BufReader::new(file);
+            let de = Deserializer::from_reader(reader);
+            let mut events = Vec::new();
+            for maybe_event in de.into_iter::<Event>() {
+                let event = maybe_event.context("failed to deserialize event")?;
+                events.push(event);
+            }
+            events.sort_by_key(|e| e.timestamp());
+            if let Some(path) = args.output_path {
+                let real_path = make_path_absolute(&path)?;
+                let file = OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .open(real_path)
+                    .context("failed to open output file")?;
+                let mut writer = BufWriter::new(file);
+                for event in events.into_iter() {
+                    serde_json::to_writer(&mut writer, &event)
+                        .context("failed to write sorted event")?;
+                    writer.write(b"\n").context("writer failed")?;
+                }
+            } else {
+                let stdout = stdout().lock();
+                let mut writer = BufWriter::new(stdout);
+                for event in events.into_iter() {
+                    serde_json::to_writer(&mut writer, &event)
+                        .context("failed to write sorted event")?;
+                    writer.write(b"\n").context("writer failed")?;
+                }
             }
         }
         Command::Render(args) => {

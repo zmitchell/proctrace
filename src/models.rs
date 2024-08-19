@@ -20,6 +20,11 @@ pub enum Event {
         pgid: i32,
         cmdline: Option<Vec<String>>,
     },
+    ExecArgs {
+        timestamp: u128,
+        pid: i32,
+        args: String,
+    },
     Exit {
         timestamp: u128,
         pid: i32,
@@ -46,6 +51,7 @@ impl Event {
         match self {
             Event::Fork { timestamp, .. } => *timestamp,
             Event::Exec { timestamp, .. } => *timestamp,
+            Event::ExecArgs { timestamp, .. } => *timestamp,
             Event::Exit { timestamp, .. } => *timestamp,
             Event::SetSID { timestamp, .. } => *timestamp,
             Event::SetPGID { timestamp, .. } => *timestamp,
@@ -56,6 +62,7 @@ impl Event {
         match self {
             Event::Fork { timestamp, .. } => *timestamp = new_ts,
             Event::Exec { timestamp, .. } => *timestamp = new_ts,
+            Event::ExecArgs { timestamp, .. } => *timestamp = new_ts,
             Event::Exit { timestamp, .. } => *timestamp = new_ts,
             Event::SetSID { timestamp, .. } => *timestamp = new_ts,
             Event::SetPGID { timestamp, .. } => *timestamp = new_ts,

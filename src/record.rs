@@ -36,6 +36,8 @@ pub fn record(
         .spawn()
         .context("failed to spawn bpftrace")?;
     let bpf_stdout = bpf_cmd.stdout.take().unwrap();
+    // Sleep for just a bit to let bpftrace start up
+    std::thread::sleep(std::time::Duration::from_millis(100));
     let reader = BufReader::new(bpf_stdout);
 
     let fork_regex = Regex::new(
@@ -45,6 +47,8 @@ pub fn record(
         r"EXEC: ts=(?<ts>\d+),pid=(?<pid>[\-\d]+),ppid=(?<ppid>[\-\d]+),pgid=(?<pgid>[\-\d]+)",
     )
     .unwrap();
+    let exec_args_regex =
+        Regex::new(r"EXEC_ARGS: ts=(?<ts>\d+),pid=(?<pid>[\-\d]+),(?<exec_args>.*)").unwrap();
     let exit_regex = Regex::new(
         r"EXIT: ts=(?<ts>\d+),pid=(?<pid>[\-\d]+),ppid=(?<ppid>[\-\d]+),pgid=(?<pgid>[\-\d]+)",
     )
@@ -101,6 +105,7 @@ pub fn record(
             &line,
             &fork_regex,
             &exec_regex,
+            &exec_args_regex,
             &exit_regex,
             &setsid_regex,
             &setpgid_regex,
@@ -133,6 +138,7 @@ pub fn record(
                     Some(ev) => match ev {
                         Event::Fork { child_pid, .. } => Some(child_pid),
                         Event::Exec { pid, .. } => Some(pid),
+                        Event::ExecArgs { .. } => None,
                         Event::Exit { .. } => None,
                         Event::SetSID { pid, .. } => Some(pid),
                         Event::SetPGID { pid, .. } => Some(pid),
@@ -158,6 +164,7 @@ fn parse_line(
     line: &str,
     fork_regex: &Regex,
     exec_regex: &Regex,
+    exec_args_regex: &Regex,
     exit_regex: &Regex,
     setsid_regex: &Regex,
     setpgid_regex: &Regex,
@@ -215,6 +222,25 @@ fn parse_line(
             ppid: ppid.parse().context("failed to parse exec ppid")?,
             pgid: pgid.parse().context("failed to parse exec pgid")?,
             cmdline: None,
+        };
+        Ok(event)
+    } else if let Some(caps) = exec_args_regex.captures(line) {
+        let ts = caps
+            .name("ts")
+            .ok_or(anyhow!("EXEC_ARGS line had no timestamp: {line}"))?
+            .as_str();
+        let pid = caps
+            .name("pid")
+            .ok_or(anyhow!("EXEC_ARGS line had no pid: {line}"))?
+            .as_str();
+        let args = caps
+            .name("exec_args")
+            .ok_or(anyhow!("EXEC_ARGS line had no args: {line}"))?
+            .as_str();
+        let event = Event::ExecArgs {
+            timestamp: ts.parse().context("failed to parse exec timestamp")?,
+            pid: pid.parse().context("failed to parse exec pid")?,
+            args: args.parse().context("failed to parse exec args")?,
         };
         Ok(event)
     } else if let Some(caps) = exit_regex.captures(line) {
@@ -347,6 +373,16 @@ pub fn handle_event<'a>(
                     .entry(*pid)
                     .and_modify(|events| events.push(event.clone()));
                 Some(event)
+            } else {
+                None
+            }
+        }
+        Event::ExecArgs { pid, .. } => {
+            if procs.contains_key(pid) {
+                procs
+                    .entry(*pid)
+                    .and_modify(|events| events.push(event.clone()));
+                Some(event.clone())
             } else {
                 None
             }

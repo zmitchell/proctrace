@@ -9,8 +9,11 @@ tracepoint:syscalls:sys_enter_clone
   if ($task->pid == $task->tgid) {
     // Ensures that we don't process forks of threads
     if ((args.clone_flags & 0x00010000) == 0) {
-	  // Store the PID to be looked up later
-	  @clones[$task->tgid] = 1;
+	  // Store the elapsed time:
+      // - So we have a nonzero sentinel value
+      // - So we can properly record the start of the fork,
+      //   otherwise sometimes the exec shows up first.
+	  @clones[$task->tgid] = elapsed;
 	}
   }
 }
@@ -22,9 +25,10 @@ tracepoint:syscalls:sys_exit_clone
   if ($task->pid == $task->tgid) {
     // Don't process this clone unless we've recorded the `enter` side of it
 	if (@clones[tid] != 0) {
+      $ts = @clones[tid];
 	  @clones[tid] = 0;
 	  $child_pid = args.ret;
-	  printf("FORK: ts=%u,parent_pid=%d,child_pid=%d,parent_pgid=%d,\n", elapsed, $task->tgid, $child_pid, $task->real_parent->tgid);
+	  printf("FORK: ts=%u,parent_pid=%d,child_pid=%d,parent_pgid=%d,\n", $ts, $task->tgid, $child_pid, $task->real_parent->tgid);
 	}
   }
 }
@@ -36,7 +40,11 @@ tracepoint:syscalls:sys_enter_clone3
   if ($task->pid == $task->tgid) {
 	// Ensures that we don't record a fork of a thread
 	if ((args.uargs->flags & 0x00010000) == 0) {
-	  @clones[tid] = 1;
+	  // Store the elapsed time:
+      // - So we have a nonzero sentinel value
+      // - So we can properly record the start of the fork,
+      //   otherwise sometimes the exec shows up first.
+	  @clones[tid] = elapsed;
 	}
   }
 }
@@ -48,9 +56,10 @@ tracepoint:syscalls:sys_exit_clone3
   if ($task->pid == $task->tgid) {
     // Don't process this clone unless we've seen the `enter` side of it
 	if (@clones[tid] != 0) {
+      $ts = @clones[tid];
 	  @clones[tid] = 0;
 	  $child_pid = args.ret;
-	  printf("FORK: ts=%u,parent_pid=%d,child_pid=%d,parent_pgid=%d,\n", elapsed, $task->tgid, $child_pid, $task->real_parent->tgid);
+	  printf("FORK: ts=%u,parent_pid=%d,child_pid=%d,parent_pgid=%d,\n", $ts, $task->tgid, $child_pid, $task->real_parent->tgid);
     }
   }
 }
@@ -62,7 +71,10 @@ tracepoint:syscalls:sys_exit_clone3
 tracepoint:syscalls:sys_enter_execve
 {
   $task = (struct task_struct *)curtask;
-  printf("EXEC: ts=%u,pid=%d,ppid=%d,pgid=%d\n", elapsed, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
+  $ts = elapsed;
+  printf("EXEC: ts=%u,pid=%d,ppid=%d,pgid=%d\n", $ts, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
+  printf("EXEC_ARGS: ts=%u,pid=%d,", $ts, $task->tgid);
+  join(args.argv);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -93,4 +105,8 @@ uretprobe:libc:setpgid
 {
   $task = (struct task_struct *)curtask;
   printf("SETPGID: ts=%u,pid=%d,ppid=%d,pgid=%d\n", elapsed, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
+}
+
+END {
+  clear(@clones);
 }
