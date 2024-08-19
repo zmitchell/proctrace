@@ -1,6 +1,6 @@
 use std::{
     collections::BTreeMap,
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Write},
     path::PathBuf,
     process::{Command, Stdio},
     sync::{
@@ -25,6 +25,7 @@ pub fn record(
     bpftrace_path: PathBuf,
     shutdown_flag: Arc<AtomicBool>,
     debug: bool,
+    mut output: impl Write,
 ) -> Result<(ProcEvents, i32), Error> {
     let mut proc_events = BTreeMap::new();
     let mut bpf_cmd = Command::new("sudo")
@@ -105,7 +106,13 @@ pub fn record(
             &setpgid_regex,
         ) {
             Ok(event) => {
-                handle_event(&event, &mut proc_events);
+                if let Some(ev) = handle_event(&event, &mut proc_events, true) {
+                    // Write to the output
+                    if let Err(err) = serde_json::to_writer(&mut output, &ev) {
+                        eprintln!("failed to write event: {}", err.to_string());
+                    }
+                    let _ = output.write(b"\n");
+                }
             }
             Err(err) => {
                 eprintln!("{}", err);
@@ -133,7 +140,7 @@ pub fn record(
                     None => None,
                 })
                 .collect::<Vec<_>>();
-            eprintln!("{remaining_pids:?}");
+            eprintln!("STILL_RUNNING: {remaining_pids:?}");
         }
         if !proc_events.is_empty()
             && proc_events
@@ -292,7 +299,11 @@ fn parse_line(
     }
 }
 
-fn handle_event(event: &Event, procs: &mut BTreeMap<i32, Vec<Event>>) {
+pub fn handle_event<'a>(
+    event: &'a Event,
+    procs: &mut BTreeMap<i32, Vec<Event>>,
+    lookup_args: bool,
+) -> Option<Event> {
     match event {
         Event::Fork {
             parent_pid,
@@ -301,6 +312,9 @@ fn handle_event(event: &Event, procs: &mut BTreeMap<i32, Vec<Event>>) {
         } => {
             if procs.contains_key(parent_pid) && !procs.contains_key(child_pid) {
                 procs.insert(*child_pid, vec![event.clone()]);
+                Some(event.clone())
+            } else {
+                None
             }
         }
         Event::Exec {
@@ -308,15 +322,19 @@ fn handle_event(event: &Event, procs: &mut BTreeMap<i32, Vec<Event>>) {
             pid,
             ppid,
             pgid,
-            ..
+            cmdline,
         } => {
             if procs.contains_key(pid) {
-                let cmdline = match Process::new(*pid).and_then(|p| p.cmdline()) {
-                    Ok(cmd) => Some(cmd),
-                    Err(e) => {
-                        eprintln!("failed to get cmd for PID {}: {}", pid, e.to_string());
-                        None
+                let cmdline = if lookup_args {
+                    match Process::new(*pid).and_then(|p| p.cmdline()) {
+                        Ok(cmd) => Some(cmd),
+                        Err(e) => {
+                            eprintln!("failed to get cmd for PID {}: {}", pid, e.to_string());
+                            None
+                        }
                     }
+                } else {
+                    cmdline.clone()
                 };
                 let event = Event::Exec {
                     timestamp: *timestamp,
@@ -325,7 +343,12 @@ fn handle_event(event: &Event, procs: &mut BTreeMap<i32, Vec<Event>>) {
                     pgid: *pgid,
                     cmdline,
                 };
-                procs.entry(*pid).and_modify(|events| events.push(event));
+                procs
+                    .entry(*pid)
+                    .and_modify(|events| events.push(event.clone()));
+                Some(event)
+            } else {
+                None
             }
         }
         Event::Exit { pid, .. } => {
@@ -333,6 +356,9 @@ fn handle_event(event: &Event, procs: &mut BTreeMap<i32, Vec<Event>>) {
                 procs
                     .entry(*pid)
                     .and_modify(|events| events.push(event.clone()));
+                Some(event.clone())
+            } else {
+                None
             }
         }
         Event::SetSID { pid, .. } => {
@@ -340,6 +366,9 @@ fn handle_event(event: &Event, procs: &mut BTreeMap<i32, Vec<Event>>) {
                 procs
                     .entry(*pid)
                     .and_modify(|events| events.push(event.clone()));
+                Some(event.clone())
+            } else {
+                None
             }
         }
         Event::SetPGID { pid, .. } => {
@@ -347,6 +376,9 @@ fn handle_event(event: &Event, procs: &mut BTreeMap<i32, Vec<Event>>) {
                 procs
                     .entry(*pid)
                     .and_modify(|events| events.push(event.clone()));
+                Some(event.clone())
+            } else {
+                None
             }
         }
     }

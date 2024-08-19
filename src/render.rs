@@ -1,13 +1,50 @@
-use std::path::Path;
+use std::{collections::BTreeMap, io::Read, path::Path};
 
+use anyhow::{anyhow, Context};
 use regex_lite::Regex;
+use serde_json::Deserializer;
 
 use crate::{
     cli::DisplayMode,
     models::{Event, ProcEvents},
+    record::handle_event,
 };
 
-pub fn render(proc_events: ProcEvents, user_cmd_pid: i32, mode: DisplayMode) {
+type Error = anyhow::Error;
+
+pub fn render(reader: impl Read, mode: DisplayMode) -> Result<(), Error> {
+    let (events, root_pid) = read_events(reader).context("failed to read events from input")?;
+    render_events(events, root_pid, mode);
+    Ok(())
+}
+
+pub fn read_events(reader: impl Read) -> Result<(ProcEvents, i32), Error> {
+    let mut proc_events = BTreeMap::new();
+    let mut de = Deserializer::from_reader(reader).into_iter::<Event>();
+    let first_event = match de.next() {
+        Some(Ok(event)) => event,
+        Some(Err(err)) => return Err(err.into()),
+        None => return Err(anyhow!("input was empty")),
+    };
+    let Event::Exec { ref pid, .. } = first_event else {
+        return Err(anyhow!("first event was not an exec"));
+    };
+    let root_pid = *pid;
+    proc_events.insert(root_pid, vec![first_event]);
+    for maybe_event in de {
+        match maybe_event {
+            Ok(event) => {
+                let _ = handle_event(&event, &mut proc_events, false);
+            }
+            Err(err) => {
+                eprintln!("failed to parse event: {err}");
+            }
+        }
+    }
+    Ok((proc_events, root_pid))
+}
+
+pub fn render_events(proc_events: ProcEvents, user_cmd_pid: i32, mode: DisplayMode) {
     match mode {
         DisplayMode::Multiplexed => {
             let mut sorted_events = proc_events.into_values().flatten().collect::<Vec<_>>();
@@ -16,12 +53,15 @@ pub fn render(proc_events: ProcEvents, user_cmd_pid: i32, mode: DisplayMode) {
                 let next_ts = sorted_events[1].timestamp();
                 sorted_events.get_mut(0).unwrap().set_timestamp(next_ts);
             }
-            println!("EVENTS");
-            let mut prev_ts = 0;
+            // let mut prev_ts = 0;
             for event in sorted_events.into_iter() {
-                let ellapsed_us = (event.timestamp() - prev_ts) / 1_000;
-                prev_ts = event.timestamp();
-                println!("({}us): {:?}", ellapsed_us, event);
+                // let ellapsed_us = (event.timestamp() - prev_ts) / 1_000;
+                // prev_ts = event.timestamp();
+                let maybe_json = serde_json::to_string(&event);
+                match maybe_json {
+                    Ok(json) => println!("{json}"),
+                    Err(err) => eprintln!("failed to parse event as JSON: {err}"),
+                }
             }
         }
         DisplayMode::ByProcess => {
@@ -30,7 +70,11 @@ pub fn render(proc_events: ProcEvents, user_cmd_pid: i32, mode: DisplayMode) {
             sorted.sort_by_key(|events| events.first().unwrap().timestamp());
             for events in sorted.iter() {
                 for event in events.iter() {
-                    println!("{:?}", event);
+                    let maybe_json = serde_json::to_string(&event);
+                    match maybe_json {
+                        Ok(json) => println!("{json}"),
+                        Err(err) => eprintln!("failed to parse event as JSON: {err}"),
+                    }
                 }
                 println!();
             }
