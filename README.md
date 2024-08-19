@@ -2,6 +2,18 @@
 
 `proctrace` is a high level profiler for process lifecycle events such as `fork`, `exec`, `setpgid`, and `setsid`.
 
+This was created as a debugging tool for work on
+[Flox](https://github.com/flox/flox).
+Under the hood it uses [bpftrace](https://github.com/bpftrace/bpftrace)
+to trace kernel-level events and system calls.
+This means that it only works on Linux (but not on NixOS yet).
+
+macOS support is planned but is on hold until a firmware/OS bug is fixed that
+causes macOS to hang if DTrace is run in the incredibly uncommon case that your
+machine has gone to sleep since boot.
+See [this thread](https://forums.developer.apple.com/forums/thread/735939) for
+details.
+
 ## Usage
 
 ```
