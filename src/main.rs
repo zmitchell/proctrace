@@ -44,6 +44,7 @@ fn main() -> Result<(), Error> {
                 let file = OpenOptions::new()
                     .write(true)
                     .create(true)
+                    .truncate(true)
                     .open(real_path)
                     .context("failed to open output file")?;
                 let writer = BufWriter::new(file);
@@ -84,6 +85,7 @@ fn main() -> Result<(), Error> {
                 let file = OpenOptions::new()
                     .write(true)
                     .create(true)
+                    .truncate(true)
                     .open(real_path)
                     .context("failed to open output file")?;
                 let mut writer = BufWriter::new(file);
