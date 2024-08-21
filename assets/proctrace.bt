@@ -13,7 +13,8 @@ tracepoint:syscalls:sys_enter_clone
       // - So we have a nonzero sentinel value
       // - So we can properly record the start of the fork,
       //   otherwise sometimes the exec shows up first.
-	  @clones[$task->tgid] = elapsed;
+      $ts = nsecs(monotonic);
+	  @clones[$task->tgid] = $ts;
 	}
   }
 }
@@ -44,7 +45,8 @@ tracepoint:syscalls:sys_enter_clone3
       // - So we have a nonzero sentinel value
       // - So we can properly record the start of the fork,
       //   otherwise sometimes the exec shows up first.
-	  @clones[tid] = elapsed;
+      $ts = nsecs(monotonic);
+	  @clones[tid] = $ts;
 	}
   }
 }
@@ -71,7 +73,7 @@ tracepoint:syscalls:sys_exit_clone3
 tracepoint:syscalls:sys_enter_execve
 {
   $task = (struct task_struct *)curtask;
-  $ts = elapsed;
+  $ts = nsecs(monotonic);
   printf("EXEC: ts=%u,pid=%d,ppid=%d,pgid=%d\n", $ts, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
   printf("EXEC_ARGS: ts=%u,pid=%d,", $ts, $task->tgid);
   join(args.argv);
@@ -86,7 +88,8 @@ tracepoint:sched:sched_process_exit
   $task = (struct task_struct *)curtask;
   // Ensures that we don't record threads exiting
   if ($task->pid == $task->tgid) {
-  	printf("EXIT: ts=%u,pid=%d,ppid=%d,pgid=%d\n", elapsed, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
+    $ts = nsecs(monotonic);
+  	printf("EXIT: ts=%u,pid=%d,ppid=%d,pgid=%d\n", $ts, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
   }
 }
 
@@ -98,13 +101,15 @@ uretprobe:libc:setsid
 {
   $task = (struct task_struct *)curtask;
   $session = retval;
-  printf("SETSID: ts=%u,pid=%d,ppid=%d,pgid=%d,sid=%d\n", elapsed, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid,$session);
+  $ts = nsecs(monotonic);
+  printf("SETSID: ts=%u,pid=%d,ppid=%d,pgid=%d,sid=%d\n", $ts, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid,$session);
 }
 
 uretprobe:libc:setpgid
 {
   $task = (struct task_struct *)curtask;
-  printf("SETPGID: ts=%u,pid=%d,ppid=%d,pgid=%d\n", elapsed, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
+  $ts = nsecs(monotonic);
+  printf("SETPGID: ts=%u,pid=%d,ppid=%d,pgid=%d\n", $ts, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
 }
 
 END {
