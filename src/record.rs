@@ -27,6 +27,7 @@ pub fn record(
     bpftrace_path: PathBuf,
     shutdown_flag: Arc<AtomicBool>,
     debug: bool,
+    record_raw: bool,
     mut output: impl Write,
 ) -> Result<(ProcEvents, i32), Error> {
     let mut proc_events = BTreeMap::new();
@@ -76,7 +77,6 @@ pub fn record(
     let mut seen_fork = false;
 
     for line in reader.lines() {
-        eprintln!("line: {}", line.as_ref().unwrap());
         if shutdown_flag.load(Ordering::SeqCst) {
             break;
         }
@@ -113,31 +113,39 @@ pub fn record(
             &setpgid_regex,
         ) {
             Ok(event) => {
-                let (is_initial_fork, should_write) = store_event_and_return_true_if_initial_fork(
-                    &event,
-                    &mut proc_events,
-                    user_cmd_pid,
-                    true,
-                );
+                let (is_initial_fork, should_write) =
+                    ingest_event(&event, &mut proc_events, user_cmd_pid, true);
                 if is_initial_fork {
                     // Write to the output
-                    write_event(&mut output, &event)?;
+                    if record_raw {
+                        write_raw(&mut output, &line)?;
+                    } else {
+                        write_event(&mut output, &event)?;
+                    }
                     // Now go through the backlog
                     for ev in backlog.drain(..) {
-                        store_event_and_return_true_if_initial_fork(
-                            &ev,
-                            &mut proc_events,
-                            user_cmd_pid,
-                            true,
-                        );
-                        // todo: write out event
-                        write_event(&mut output, &ev)?;
+                        ingest_event(&ev, &mut proc_events, user_cmd_pid, true);
+                        // Only write backlog events if we aren't in raw mode,
+                        // we write event lines before putting them in the backlog
+                        // in raw mode.
+                        if !record_raw {
+                            write_event(&mut output, &ev)?;
+                        }
                         seen_fork = true;
                     }
                 } else if !seen_fork {
+                    if record_raw {
+                        write_raw(&mut output, &line)?;
+                    }
                     backlog.push(event);
                 } else if should_write {
-                    write_event(&mut output, &event)?;
+                    if record_raw {
+                        write_raw(&mut output, &line)?;
+                    } else {
+                        write_event(&mut output, &event)?;
+                    }
+                } else if record_raw {
+                    write_raw(&mut output, &line)?;
                 }
             }
             Err(err) => {
@@ -184,7 +192,15 @@ pub fn record(
 fn write_event(mut writer: &mut impl Write, event: &Event) -> Result<(), Error> {
     // Write to the output
     if let Err(err) = serde_json::to_writer(&mut writer, event) {
-        eprintln!("failed to write event: {}", err.to_string());
+        eprintln!("failed to write event: {err}");
+    }
+    let _ = writer.write(b"\n");
+    Ok(())
+}
+
+fn write_raw(writer: &mut impl Write, line: impl AsRef<[u8]>) -> Result<(), Error> {
+    if let Err(err) = writer.write_all(line.as_ref()) {
+        eprintln!("failed to write raw event: {err}");
     }
     let _ = writer.write(b"\n");
     Ok(())
@@ -355,7 +371,7 @@ fn parse_line(
     }
 }
 
-pub fn store_event_and_return_true_if_initial_fork<'a>(
+pub fn ingest_event<'a>(
     event: &'a Event,
     procs: &mut BTreeMap<i32, Vec<Event>>,
     root_pid: i32,

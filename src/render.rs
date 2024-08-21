@@ -7,7 +7,7 @@ use serde_json::Deserializer;
 use crate::{
     cli::DisplayMode,
     models::{Event, ProcEvents},
-    record::store_event_and_return_true_if_initial_fork,
+    record::ingest_event,
 };
 
 type Error = anyhow::Error;
@@ -34,12 +34,7 @@ pub fn read_events(reader: impl Read) -> Result<(ProcEvents, i32), Error> {
     for maybe_event in de {
         match maybe_event {
             Ok(event) => {
-                let _ = store_event_and_return_true_if_initial_fork(
-                    &event,
-                    &mut proc_events,
-                    root_pid,
-                    false,
-                );
+                let _ = ingest_event(&event, &mut proc_events, root_pid, false);
             }
             Err(err) => {
                 eprintln!("failed to parse event: {err}");

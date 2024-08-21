@@ -74,6 +74,15 @@ pub struct RecordArgs {
     #[arg(long, help = "Show debug output")]
     pub debug: bool,
 
+    /// Write the raw events from the `bpftrace` script instead of the processed
+    /// events.
+    ///
+    /// This will write events from processes outside of the target process
+    /// tree, but recording this raw output allows you to rerun analysis without
+    /// needing to collect another recording.
+    #[arg(short, long, help = "Record all of the raw events from bpftrace")]
+    pub raw: bool,
+
     /// Write the output to a file
     #[arg(
         short,

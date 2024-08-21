@@ -48,25 +48,33 @@ fn main() -> Result<(), Error> {
                     .open(real_path)
                     .context("failed to open output file")?;
                 let writer = BufWriter::new(file);
-                let _ = record(
+                let (_, root_pid) = record(
                     user_cmd,
                     args.bpftrace_path,
                     shutdown_flag.clone(),
                     args.debug,
+                    args.raw,
                     writer,
                 )
                 .context("failed while recording events")?;
+                if args.raw {
+                    eprintln!("Process tree root was PID {root_pid}");
+                }
             } else {
                 let stdout = stdout().lock();
                 let writer = BufWriter::new(stdout);
-                let _ = record(
+                let (_, root_pid) = record(
                     user_cmd,
                     args.bpftrace_path,
                     shutdown_flag.clone(),
                     args.debug,
+                    args.raw,
                     writer,
                 )
                 .context("failed while recording events")?;
+                if args.raw {
+                    eprintln!("Process tree root was PID {root_pid}");
+                }
             }
         }
         Command::Sort(args) => {
