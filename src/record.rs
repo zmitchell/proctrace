@@ -20,6 +20,8 @@ use crate::{
 
 type Error = anyhow::Error;
 
+// target/debug/proctrace record -o dbg.log -- flox activate -- sleep 1
+
 pub fn record(
     mut user_cmd: Command,
     bpftrace_path: PathBuf,
@@ -37,7 +39,7 @@ pub fn record(
         .context("failed to spawn bpftrace")?;
     let bpf_stdout = bpf_cmd.stdout.take().unwrap();
     // Sleep for just a bit to let bpftrace start up
-    std::thread::sleep(std::time::Duration::from_millis(100));
+    std::thread::sleep(std::time::Duration::from_millis(1000));
     let reader = BufReader::new(bpf_stdout);
 
     let fork_regex = Regex::new(
@@ -65,7 +67,16 @@ pub fn record(
     #[allow(unused_assignments)]
     let mut user_cmd_pid = 0;
     let mut child = None;
+
+    // Forks may appear out of order from execs due to how they're recorded,
+    // so we need to keep a backlog of events that _may_ contain the exec of
+    // the user's command. We keep putting events into this backlog until we
+    // see the fork, then we drain it and never put anything back into it.
+    let mut backlog = vec![];
+    let mut seen_fork = false;
+
     for line in reader.lines() {
+        eprintln!("line: {}", line.as_ref().unwrap());
         if shutdown_flag.load(Ordering::SeqCst) {
             break;
         }
@@ -80,16 +91,7 @@ pub fn record(
                 .map(|s| s.to_string_lossy().to_string())
                 .collect();
             cmdline.extend_from_slice(&cmd_args);
-            proc_events.insert(
-                user_cmd_pid,
-                vec![Event::Exec {
-                    timestamp: 0,
-                    pid: user_cmd_pid,
-                    ppid: 0,
-                    pgid: 0,
-                    cmdline: Some(cmdline),
-                }],
-            );
+            proc_events.insert(user_cmd_pid, vec![]);
             user_cmd_started = true;
             continue;
         }
@@ -111,12 +113,31 @@ pub fn record(
             &setpgid_regex,
         ) {
             Ok(event) => {
-                if let Some(ev) = handle_event(&event, &mut proc_events, true) {
+                let (is_initial_fork, should_write) = store_event_and_return_true_if_initial_fork(
+                    &event,
+                    &mut proc_events,
+                    user_cmd_pid,
+                    true,
+                );
+                if is_initial_fork {
                     // Write to the output
-                    if let Err(err) = serde_json::to_writer(&mut output, &ev) {
-                        eprintln!("failed to write event: {}", err.to_string());
+                    write_event(&mut output, &event)?;
+                    // Now go through the backlog
+                    for ev in backlog.drain(..) {
+                        store_event_and_return_true_if_initial_fork(
+                            &ev,
+                            &mut proc_events,
+                            user_cmd_pid,
+                            true,
+                        );
+                        // todo: write out event
+                        write_event(&mut output, &ev)?;
+                        seen_fork = true;
                     }
-                    let _ = output.write(b"\n");
+                } else if !seen_fork {
+                    backlog.push(event);
+                } else if should_write {
+                    write_event(&mut output, &event)?;
                 }
             }
             Err(err) => {
@@ -158,6 +179,15 @@ pub fn record(
     }
 
     Ok((proc_events, user_cmd_pid))
+}
+
+fn write_event(mut writer: &mut impl Write, event: &Event) -> Result<(), Error> {
+    // Write to the output
+    if let Err(err) = serde_json::to_writer(&mut writer, event) {
+        eprintln!("failed to write event: {}", err.to_string());
+    }
+    let _ = writer.write(b"\n");
+    Ok(())
 }
 
 fn parse_line(
@@ -325,22 +355,29 @@ fn parse_line(
     }
 }
 
-pub fn handle_event<'a>(
+pub fn store_event_and_return_true_if_initial_fork<'a>(
     event: &'a Event,
     procs: &mut BTreeMap<i32, Vec<Event>>,
+    root_pid: i32,
     lookup_args: bool,
-) -> Option<Event> {
+) -> (bool, bool) {
+    let mut is_initial_fork = false;
+    let mut should_write = false;
     match event {
         Event::Fork {
             parent_pid,
             child_pid,
             ..
         } => {
-            if procs.contains_key(parent_pid) && !procs.contains_key(child_pid) {
+            if child_pid == &root_pid {
+                procs
+                    .entry(root_pid)
+                    .and_modify(|events| events.push(event.clone()));
+                is_initial_fork = true;
+                should_write = true;
+            } else if procs.contains_key(parent_pid) && !procs.contains_key(child_pid) {
                 procs.insert(*child_pid, vec![event.clone()]);
-                Some(event.clone())
-            } else {
-                None
+                should_write = true;
             }
         }
         Event::Exec {
@@ -372,9 +409,7 @@ pub fn handle_event<'a>(
                 procs
                     .entry(*pid)
                     .and_modify(|events| events.push(event.clone()));
-                Some(event)
-            } else {
-                None
+                should_write = true;
             }
         }
         Event::ExecArgs { pid, .. } => {
@@ -382,9 +417,7 @@ pub fn handle_event<'a>(
                 procs
                     .entry(*pid)
                     .and_modify(|events| events.push(event.clone()));
-                Some(event.clone())
-            } else {
-                None
+                should_write = true;
             }
         }
         Event::Exit { pid, .. } => {
@@ -392,9 +425,7 @@ pub fn handle_event<'a>(
                 procs
                     .entry(*pid)
                     .and_modify(|events| events.push(event.clone()));
-                Some(event.clone())
-            } else {
-                None
+                should_write = true;
             }
         }
         Event::SetSID { pid, .. } => {
@@ -402,9 +433,7 @@ pub fn handle_event<'a>(
                 procs
                     .entry(*pid)
                     .and_modify(|events| events.push(event.clone()));
-                Some(event.clone())
-            } else {
-                None
+                should_write = true;
             }
         }
         Event::SetPGID { pid, .. } => {
@@ -412,10 +441,9 @@ pub fn handle_event<'a>(
                 procs
                     .entry(*pid)
                     .and_modify(|events| events.push(event.clone()));
-                Some(event.clone())
-            } else {
-                None
+                should_write = true;
             }
         }
     }
+    (is_initial_fork, should_write)
 }
