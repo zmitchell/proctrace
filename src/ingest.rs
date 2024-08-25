@@ -445,11 +445,11 @@ impl<T: EventWrite> EventIngester<T> {
 
     pub fn unfinished_pids(&self) -> Vec<i32> {
         self.events
-            .values()
-            .filter_map(|events| match events.back() {
-                Some(Event::Exit { pid, .. }) => Some(*pid),
-                Some(_) => None,
-                None => None,
+            .iter()
+            .filter_map(|(pid, events)| match events.back() {
+                Some(Event::Exit { .. }) => None,
+                Some(event) => Some(event.pid()),
+                None => Some(*pid),
             })
             .collect::<Vec<_>>()
     }
