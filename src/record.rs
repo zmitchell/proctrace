@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, VecDeque},
     io::{BufRead, BufReader, Write},
     path::PathBuf,
     process::{Command, Stdio},
@@ -14,6 +14,7 @@ use procfs::process::Process;
 use regex_lite::Regex;
 
 use crate::{
+    ingest::EventParser,
     models::{Event, ProcEvents},
     SCRIPT,
 };
@@ -41,28 +42,9 @@ pub fn record(
     let bpf_stdout = bpf_cmd.stdout.take().unwrap();
     // Sleep for just a bit to let bpftrace start up
     std::thread::sleep(std::time::Duration::from_millis(1000));
-    let reader = BufReader::new(bpf_stdout);
 
-    let fork_regex = Regex::new(
-        r"FORK: ts=(?<ts>\d+),parent_pid=(?<ppid>[\-\d]+),child_pid=(?<cpid>[\-\d]+),parent_pgid=(?<pgid>[\-\d]+)",
-    ).unwrap();
-    let exec_regex = Regex::new(
-        r"EXEC: ts=(?<ts>\d+),pid=(?<pid>[\-\d]+),ppid=(?<ppid>[\-\d]+),pgid=(?<pgid>[\-\d]+)",
-    )
-    .unwrap();
-    let exec_args_regex =
-        Regex::new(r"EXEC_ARGS: ts=(?<ts>\d+),pid=(?<pid>[\-\d]+),(?<exec_args>.*)").unwrap();
-    let exit_regex = Regex::new(
-        r"EXIT: ts=(?<ts>\d+),pid=(?<pid>[\-\d]+),ppid=(?<ppid>[\-\d]+),pgid=(?<pgid>[\-\d]+)",
-    )
-    .unwrap();
-    let setsid_regex = Regex::new(
-        r"SETSID: ts=(?<ts>\d+),pid=(?<pid>[\-\d]+),ppid=(?<ppid>[\-\d]+),pgid=(?<pgid>[\-\d]+),sid=(?<sid>[\-\d]+)",
-    ).unwrap();
-    let setpgid_regex = Regex::new(
-        r"SETPGID: ts=(?<ts>\d+),pid=(?<pid>[\-\d]+),ppid=(?<ppid>[\-\d]+),pgid=(?<pgid>[\-\d]+)",
-    )
-    .unwrap();
+    let reader = BufReader::new(bpf_stdout);
+    let event_parser = EventParser::new();
 
     let mut user_cmd_started = false;
     #[allow(unused_assignments)]
@@ -91,7 +73,7 @@ pub fn record(
                 .map(|s| s.to_string_lossy().to_string())
                 .collect();
             cmdline.extend_from_slice(&cmd_args);
-            proc_events.insert(user_cmd_pid, vec![]);
+            proc_events.insert(user_cmd_pid, VecDeque::new());
             user_cmd_started = true;
             continue;
         }
@@ -103,15 +85,7 @@ pub fn record(
         if debug {
             eprintln!("RX: {}", line);
         }
-        match parse_line(
-            &line,
-            &fork_regex,
-            &exec_regex,
-            &exec_args_regex,
-            &exit_regex,
-            &setsid_regex,
-            &setpgid_regex,
-        ) {
+        match event_parser.parse_line(&line) {
             Ok(event) => {
                 let (is_initial_fork, should_write) =
                     ingest_event(&event, &mut proc_events, user_cmd_pid, true);
@@ -163,7 +137,7 @@ pub fn record(
         if debug {
             let remaining_pids = proc_events
                 .values()
-                .filter_map(|events| match events.last() {
+                .filter_map(|events| match events.back() {
                     Some(ev) => match ev {
                         Event::Fork { child_pid, .. } => Some(child_pid),
                         Event::Exec { pid, .. } => Some(pid),
@@ -180,7 +154,7 @@ pub fn record(
         if !proc_events.is_empty()
             && proc_events
                 .values()
-                .all(|events| matches!(events.last().unwrap(), Event::Exit { .. }))
+                .all(|events| matches!(events.back().unwrap(), Event::Exit { .. }))
         {
             break;
         }
@@ -189,7 +163,7 @@ pub fn record(
     Ok((proc_events, user_cmd_pid))
 }
 
-fn write_event(mut writer: &mut impl Write, event: &Event) -> Result<(), Error> {
+pub fn write_event(mut writer: &mut impl Write, event: &Event) -> Result<(), Error> {
     // Write to the output
     if let Err(err) = serde_json::to_writer(&mut writer, event) {
         eprintln!("failed to write event: {err}");
@@ -198,7 +172,7 @@ fn write_event(mut writer: &mut impl Write, event: &Event) -> Result<(), Error> 
     Ok(())
 }
 
-fn write_raw(writer: &mut impl Write, line: impl AsRef<[u8]>) -> Result<(), Error> {
+pub fn write_raw(writer: &mut impl Write, line: impl AsRef<[u8]>) -> Result<(), Error> {
     if let Err(err) = writer.write_all(line.as_ref()) {
         eprintln!("failed to write raw event: {err}");
     }
@@ -206,7 +180,7 @@ fn write_raw(writer: &mut impl Write, line: impl AsRef<[u8]>) -> Result<(), Erro
     Ok(())
 }
 
-fn parse_line(
+pub fn parse_line(
     line: &str,
     fork_regex: &Regex,
     exec_regex: &Regex,
@@ -373,7 +347,7 @@ fn parse_line(
 
 pub fn ingest_event<'a>(
     event: &'a Event,
-    procs: &mut BTreeMap<i32, Vec<Event>>,
+    procs: &mut ProcEvents,
     root_pid: i32,
     lookup_args: bool,
 ) -> (bool, bool) {
@@ -388,11 +362,13 @@ pub fn ingest_event<'a>(
             if child_pid == &root_pid {
                 procs
                     .entry(root_pid)
-                    .and_modify(|events| events.push(event.clone()));
+                    .and_modify(|events| events.push_back(event.clone()));
                 is_initial_fork = true;
                 should_write = true;
             } else if procs.contains_key(parent_pid) && !procs.contains_key(child_pid) {
-                procs.insert(*child_pid, vec![event.clone()]);
+                let mut events = VecDeque::new();
+                events.push_back(event.clone());
+                procs.insert(*child_pid, events);
                 should_write = true;
             }
         }
@@ -424,7 +400,7 @@ pub fn ingest_event<'a>(
                 };
                 procs
                     .entry(*pid)
-                    .and_modify(|events| events.push(event.clone()));
+                    .and_modify(|events| events.push_back(event.clone()));
                 should_write = true;
             }
         }
@@ -432,7 +408,7 @@ pub fn ingest_event<'a>(
             if procs.contains_key(pid) {
                 procs
                     .entry(*pid)
-                    .and_modify(|events| events.push(event.clone()));
+                    .and_modify(|events| events.push_back(event.clone()));
                 should_write = true;
             }
         }
@@ -440,7 +416,7 @@ pub fn ingest_event<'a>(
             if procs.contains_key(pid) {
                 procs
                     .entry(*pid)
-                    .and_modify(|events| events.push(event.clone()));
+                    .and_modify(|events| events.push_back(event.clone()));
                 should_write = true;
             }
         }
@@ -448,7 +424,7 @@ pub fn ingest_event<'a>(
             if procs.contains_key(pid) {
                 procs
                     .entry(*pid)
-                    .and_modify(|events| events.push(event.clone()));
+                    .and_modify(|events| events.push_back(event.clone()));
                 should_write = true;
             }
         }
@@ -456,7 +432,7 @@ pub fn ingest_event<'a>(
             if procs.contains_key(pid) {
                 procs
                     .entry(*pid)
-                    .and_modify(|events| events.push(event.clone()));
+                    .and_modify(|events| events.push_back(event.clone()));
                 should_write = true;
             }
         }

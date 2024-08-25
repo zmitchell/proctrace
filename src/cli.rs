@@ -40,6 +40,12 @@ pub enum Command {
     /// the case if you've installed `bpftrace` via `flox` or `nix profile install`.
     Record(RecordArgs),
 
+    /// Convert a raw recording into a processed recording such that it is ready for rendering.
+    ///
+    /// A recording produced in "raw" mode cannot be rendered directly, so it must first
+    /// be processed into a render-ready form. This subcommand does that processing.
+    Ingest(IngestArgs),
+
     /// Sort the output from a recording.
     ///
     /// The events persisted in a recording may not arrive in timestamp order.
@@ -83,7 +89,7 @@ pub struct RecordArgs {
     #[arg(short, long, help = "Record all of the raw events from bpftrace")]
     pub raw: bool,
 
-    /// Write the output to a file
+    /// Where to write the output (default: stdout).
     #[arg(
         short,
         long = "output",
@@ -103,13 +109,13 @@ pub struct RecordArgs {
 
 #[derive(Debug, Clone, Args, PartialEq, Eq)]
 pub struct SortArgs {
-    /// The location where an event recording should be read from.
+    /// The path to the recording to be sorted.
     ///
     /// Must either be a path to a file or '-' to read from stdin.
     #[arg(short, long = "input", help = "The path to the event data file")]
     pub input_path: PathBuf,
 
-    /// Write the output to a file
+    /// Where to write the output (default: stdout).
     #[arg(
         short,
         long = "output",
@@ -136,4 +142,34 @@ pub struct RenderArgs {
     /// Must either be a path to a file or '-' to read from stdin.
     #[arg(short, long = "input", help = "The path to the event data file")]
     pub input_path: PathBuf,
+}
+
+#[derive(Debug, Clone, Args, PartialEq, Eq)]
+pub struct IngestArgs {
+    /// The path to the raw recording to be processed.
+    ///
+    /// Must either be a path to a file or '-' to read from stdin.
+    #[arg(short, long = "input", help = "The path to the event data file")]
+    pub input_path: PathBuf,
+
+    /// Where to write the processed recording.
+    #[arg(
+        short,
+        long = "output",
+        help = "Where to write the output (printed to stdout if omitted).",
+        value_name = "PATH"
+    )]
+    pub output_path: Option<PathBuf>,
+
+    /// Which PID to use as the root of the process tree.
+    ///
+    /// A raw recording contains events from the entire system,
+    /// so the user must supply a PID from which to begin tracing
+    /// a process tree.
+    #[arg(short = 'p', long, value_name = "PID")]
+    pub root_pid: i32,
+
+    /// Whether to display debug output while ingesting.
+    #[arg(short, long)]
+    pub debug: bool,
 }

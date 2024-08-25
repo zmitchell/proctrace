@@ -1,4 +1,8 @@
-use std::{collections::BTreeMap, io::Read, path::Path};
+use std::{
+    collections::{BTreeMap, VecDeque},
+    io::Read,
+    path::Path,
+};
 
 use anyhow::{anyhow, Context};
 use regex_lite::Regex;
@@ -30,7 +34,9 @@ pub fn read_events(reader: impl Read) -> Result<(ProcEvents, i32), Error> {
         return Err(anyhow!("first event was not an exec"));
     };
     let root_pid = *pid;
-    proc_events.insert(root_pid, vec![first_event]);
+    let mut events = VecDeque::new();
+    events.push_back(first_event);
+    proc_events.insert(root_pid, events);
     for maybe_event in de {
         match maybe_event {
             Ok(event) => {
@@ -67,7 +73,7 @@ pub fn render_events(proc_events: ProcEvents, user_cmd_pid: i32, mode: DisplayMo
         DisplayMode::ByProcess => {
             println!("EVENTS");
             let mut sorted = proc_events.into_values().collect::<Vec<_>>();
-            sorted.sort_by_key(|events| events.first().unwrap().timestamp());
+            sorted.sort_by_key(|events| events.front().unwrap().timestamp());
             for events in sorted.iter() {
                 for event in events.iter() {
                     let maybe_json = serde_json::to_string(&event);
@@ -100,14 +106,14 @@ fn print_mermaid_output(root_pid: i32, mut events: ProcEvents) {
     events
         .get_mut(&root_pid)
         .unwrap()
-        .first_mut()
+        .front_mut()
         .unwrap()
         .set_timestamp(second_ts);
 
     // There's a bug that catches a bunch of Fork events with no exit right
     // now. I have no idea what those forks are or why they don't show up
     // with an exit.
-    events.retain(|_k, v| !matches!(v.last().unwrap(), Event::Fork { .. }));
+    events.retain(|_k, v| !matches!(v.back().unwrap(), Event::Fork { .. }));
     let mut buf = String::new();
     buf.push_str("gantt\n");
     buf.push_str("    title Process Trace\n");
@@ -119,7 +125,11 @@ fn print_mermaid_output(root_pid: i32, mut events: ProcEvents) {
 }
 
 fn recurse_children(parent: i32, mut events: ProcEvents, buf: &mut String, initial_time: u128) {
-    print_spans_for_process(events[&parent].as_slice(), buf, initial_time);
+    print_spans_for_process(
+        events.get_mut(&parent).unwrap().make_contiguous(),
+        buf,
+        initial_time,
+    );
     if let Some(child) = next_child_pid(parent, &events) {
         recurse_children(child, events, buf, initial_time);
     } else {
@@ -132,7 +142,7 @@ fn next_child_pid(parent: i32, events: &ProcEvents) -> Option<i32> {
         .iter()
         .filter(|(pid, _)| **pid != parent)
         .filter_map(|(pid, proc_events)| {
-            proc_events.first().and_then(|e| {
+            proc_events.front().and_then(|e| {
                 if let Event::Fork {
                     timestamp,
                     parent_pid,

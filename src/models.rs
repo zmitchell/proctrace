@@ -1,10 +1,10 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 
 use serde::{Deserialize, Serialize};
 
-pub type ProcEvents = BTreeMap<i32, Vec<Event>>;
+pub type ProcEvents = BTreeMap<i32, VecDeque<Event>>;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(dead_code)]
 pub enum Event {
     Fork {
@@ -69,8 +69,27 @@ impl Event {
         }
     }
 
+    pub fn pid(&self) -> i32 {
+        match self {
+            Event::Fork { child_pid, .. } => *child_pid,
+            Event::Exec { pid, .. } => *pid,
+            Event::ExecArgs { pid, .. } => *pid,
+            Event::Exit { pid, .. } => *pid,
+            Event::SetSID { pid, .. } => *pid,
+            Event::SetPGID { pid, .. } => *pid,
+        }
+    }
+
     pub fn is_fork(&self) -> bool {
         matches!(self, Event::Fork { .. })
+    }
+
+    pub fn fork_parent(&self) -> Option<i32> {
+        if let Event::Fork { parent_pid, .. } = self {
+            Some(*parent_pid)
+        } else {
+            None
+        }
     }
 
     pub fn is_exec(&self) -> bool {

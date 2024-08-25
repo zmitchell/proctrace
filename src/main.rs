@@ -1,17 +1,20 @@
 use crate::cli::Cli;
 use clap::Parser;
 use cli::Command;
+use ingest::ingest_raw;
 use models::Event;
 use record::record;
 use render::render;
 use serde_json::Deserializer;
 use std::{
-    fs::OpenOptions,
-    io::{stdin, stdout, BufReader, BufWriter, Write},
+    io::{stdin, BufReader},
     path::Path,
     sync::{atomic::AtomicBool, Arc},
 };
-use utils::make_path_absolute;
+use utils::{
+    make_path_absolute, new_buffered_input_stream, new_buffered_output_stream, new_output_file,
+};
+use writers::{EventWrite, JsonWriter};
 
 use anyhow::Context;
 
@@ -20,10 +23,12 @@ type Error = anyhow::Error;
 const SCRIPT: &'static str = include_str!("../assets/proctrace.bt");
 
 mod cli;
+mod ingest;
 mod models;
 mod record;
 mod render;
 mod utils;
+mod writers;
 
 fn main() -> Result<(), Error> {
     let args = Cli::parse();
@@ -39,77 +44,33 @@ fn main() -> Result<(), Error> {
             let mut user_cmd = std::process::Command::new(&args.cmd[0]);
             user_cmd.args(&args.cmd[1..]);
 
-            if let Some(path) = args.output_path {
-                let real_path = make_path_absolute(&path)?;
-                let file = OpenOptions::new()
-                    .write(true)
-                    .create(true)
-                    .truncate(true)
-                    .open(real_path)
-                    .context("failed to open output file")?;
-                let writer = BufWriter::new(file);
-                let (_, root_pid) = record(
-                    user_cmd,
-                    args.bpftrace_path,
-                    shutdown_flag.clone(),
-                    args.debug,
-                    args.raw,
-                    writer,
-                )
-                .context("failed while recording events")?;
-                if args.raw {
-                    eprintln!("Process tree root was PID {root_pid}");
-                }
-            } else {
-                let stdout = stdout().lock();
-                let writer = BufWriter::new(stdout);
-                let (_, root_pid) = record(
-                    user_cmd,
-                    args.bpftrace_path,
-                    shutdown_flag.clone(),
-                    args.debug,
-                    args.raw,
-                    writer,
-                )
-                .context("failed while recording events")?;
-                if args.raw {
-                    eprintln!("Process tree root was PID {root_pid}");
-                }
+            let writer = new_buffered_output_stream(&args.output_path)?;
+            let (_, root_pid) = record(
+                user_cmd,
+                args.bpftrace_path,
+                shutdown_flag.clone(),
+                args.debug,
+                args.raw,
+                writer,
+            )
+            .context("failed while recording events")?;
+            if args.raw {
+                eprintln!("Process tree root was PID {root_pid}");
             }
         }
         Command::Sort(args) => {
-            let input_path = make_path_absolute(&args.input_path)?;
-            let file = std::fs::File::open(&input_path).context("failed to open input file")?;
-            let reader = BufReader::new(file);
+            let reader = new_buffered_input_stream(&args.input_path)?;
             let de = Deserializer::from_reader(reader);
+            let write_stream = new_buffered_output_stream(&args.output_path)?;
+            let mut writer = JsonWriter::new(write_stream);
             let mut events = Vec::new();
             for maybe_event in de.into_iter::<Event>() {
                 let event = maybe_event.context("failed to deserialize event")?;
                 events.push(event);
             }
             events.sort_by_key(|e| e.timestamp());
-            if let Some(path) = args.output_path {
-                let real_path = make_path_absolute(&path)?;
-                let file = OpenOptions::new()
-                    .write(true)
-                    .create(true)
-                    .truncate(true)
-                    .open(real_path)
-                    .context("failed to open output file")?;
-                let mut writer = BufWriter::new(file);
-                for event in events.into_iter() {
-                    serde_json::to_writer(&mut writer, &event)
-                        .context("failed to write sorted event")?;
-                    writer.write(b"\n").context("writer failed")?;
-                }
-            } else {
-                let stdout = stdout().lock();
-                let mut writer = BufWriter::new(stdout);
-                for event in events.into_iter() {
-                    serde_json::to_writer(&mut writer, &event)
-                        .context("failed to write sorted event")?;
-                    writer.write(b"\n").context("writer failed")?;
-                }
+            for event in events.into_iter() {
+                writer.write_event(&event)?;
             }
         }
         Command::Render(args) => {
@@ -119,10 +80,16 @@ fn main() -> Result<(), Error> {
                 render(reader, args.display_mode)?;
             } else {
                 let real_path = make_path_absolute(&args.input_path)?;
-                let file = std::fs::File::open(real_path).context("failed to open output file")?;
+                let file = new_output_file(real_path)?;
                 let reader = BufReader::new(file);
                 render(reader, args.display_mode)?;
             }
+        }
+        Command::Ingest(args) => {
+            let reader = new_buffered_input_stream(&args.input_path)?;
+            let write_stream = new_buffered_output_stream(&args.output_path)?;
+            let writer = JsonWriter::new(write_stream);
+            ingest_raw(args.debug, args.root_pid, reader, writer)?;
         }
     }
 
