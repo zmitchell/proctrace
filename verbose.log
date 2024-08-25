@@ -1,32 +1,82 @@
-EXEC: ts=3278537126,pid=233372,ppid=233361,pgid=233372
-EXEC_ARGS: ts=3278537126,pid=233372,flox activate -- sleep 1
-EXEC: ts=3280013956,pid=233372,ppid=233361,pgid=233372
-EXEC_ARGS: ts=3280013956,pid=233372,flox activate -- sleep 1
-EXEC: ts=3280115955,pid=233372,ppid=233361,pgid=233372
-EXEC_ARGS: ts=3280115955,pid=233372,flox activate -- sleep 1
-FORK: ts=3273157142,parent_pid=233361,child_pid=233372,parent_pgid=187110,
-EXEC: ts=3281100536,pid=233372,ppid=233361,pgid=233372
-EXEC_ARGS: ts=3281100536,pid=233372,flox activate -- sleep 1
-EXEC: ts=3334380424,pid=233384,ppid=233372,pgid=233384
-EXEC_ARGS: ts=3334380424,pid=233384,/nix/store/gbg2xq3si9vf8w9pi3lywf83bs6rz74w-flox-watchdog-1.2.3/bin/flox-watchdog --pid 233372 --logs /home/zmitchell/code/proctrace/.flox/cache/watchdog.233372.log --socket /run/user/1000/flox.5ae6e2f1.sock --hash 5ae6e2f1 --registry /home/zmitchell/.local/share/flox/env-registry.json
-FORK: ts=3334330841,parent_pid=233372,child_pid=233384,parent_pgid=233361,
-EXEC: ts=3334677549,pid=233372,ppid=233361,pgid=233372
-EXEC_ARGS: ts=3334677549,pid=233372,/home/zmitchell/code/proctrace/.flox/run/aarch64-linux.proctrace/activate -c sleep 1
-FORK: ts=3337277166,parent_pid=233372,child_pid=233385,parent_pgid=233361,
-EXEC: ts=3337580957,pid=233385,ppid=233372,pgid=233385
-EXEC_ARGS: ts=3337580957,pid=233385,/nix/store/zzmqcgd2vrql9656a2fkwk948r38mgai-coreutils-9.3/bin/dirname -- /home/zmitchell/code/proctrace/.flox/run/aarch64-linux.proctrace/activate
-EXIT: ts=3338440704,pid=233385,ppid=233372,pgid=233385
-FORK: ts=3338882953,parent_pid=233372,child_pid=233386,parent_pgid=233361,
-EXEC: ts=3339144036,pid=233386,ppid=233372,pgid=233386
-EXEC_ARGS: ts=3339144036,pid=233386,/nix/store/ha241bhagian5dbg9ddi2b6y2m449fh1-gnused-4.9/bin/sed -e s/^/unset / -e s/$/;/ /tmp/tmp.lYuyiAQWpD.187110.del-env
-EXIT: ts=3340420032,pid=233386,ppid=233372,pgid=233386
-FORK: ts=3340555657,parent_pid=233372,child_pid=233387,parent_pgid=233361,
-EXEC: ts=3340891906,pid=233387,ppid=233372,pgid=233387
-EXEC_ARGS: ts=3340891906,pid=233387,/nix/store/ha241bhagian5dbg9ddi2b6y2m449fh1-gnused-4.9/bin/sed -e s/^/export / -e s/$/;/ /tmp/tmp.lYrLEQQWcd.187110.add-env
-EXIT: ts=3342103819,pid=233387,ppid=233372,pgid=233387
-EXEC: ts=3342506818,pid=233372,ppid=233361,pgid=233372
-EXEC_ARGS: ts=3342506818,pid=233372,/bin/bash --noprofile --rcfile /home/zmitchell/code/proctrace/.flox/run/aarch64-linux.proctrace/activate.d/bash -c sleep 1
-EXEC: ts=3343273066,pid=233372,ppid=233361,pgid=233372
-EXEC_ARGS: ts=3343273066,pid=233372,sleep 1
-EXIT: ts=51297225,pid=233372,ppid=233361,pgid=233372
-EXIT: ts=55072256,pid=233384,ppid=1,pgid=233384
+EXEC: ts=549965702,pid=170907,ppid=170896,pgid=170907
+EXEC_ARGS: ts=549965702,pid=170907,flox activate -- sleep 1
+FORK: ts=549584823,parent_pid=170896,child_pid=170907,parent_pgid=163825,
+EXEC: ts=551598927,pid=170907,ppid=170896,pgid=170907
+EXEC_ARGS: ts=551598927,pid=170907,flox activate -- sleep 1
+EXEC: ts=591604448,pid=170919,ppid=170907,pgid=170919
+EXEC_ARGS: ts=591604448,pid=170919,/nix/store/gbg2xq3si9vf8w9pi3lywf83bs6rz74w-flox-watchdog-1.2.3/bin/flox-watchdog --pid 170907 --logs /home/zmitchell/code/proctrace/.flox/cache/watchdog.170907.log --socket /run/user/1000/flox.5ae6e2f1.sock --hash 5ae6e2f1 --registry /home/zmitchell/.local/share/flox/env-registry.json
+FORK: ts=591562323,parent_pid=170907,child_pid=170919,parent_pgid=170896,
+EXEC: ts=591776075,pid=170907,ppid=170896,pgid=170907
+EXEC_ARGS: ts=591776075,pid=170907,/home/zmitchell/code/proctrace/.flox/run/aarch64-linux.proctrace/activate -c sleep 1
+FORK: ts=593757344,parent_pid=170907,child_pid=170920,parent_pgid=170896,
+EXEC: ts=593978638,pid=170920,ppid=170907,pgid=170920
+EXEC_ARGS: ts=593978638,pid=170920,/nix/store/zzmqcgd2vrql9656a2fkwk948r38mgai-coreutils-9.3/bin/dirname -- /home/zmitchell/code/proctrace/.flox/run/aarch64-linux.proctrace/activate
+EXIT: ts=594545019,pid=170920,ppid=170907,pgid=170920
+FORK: ts=594859772,parent_pid=170907,child_pid=170921,parent_pgid=170896,
+EXEC: ts=595033774,pid=170921,ppid=170907,pgid=170921
+EXEC_ARGS: ts=595033774,pid=170921,/nix/store/zzmqcgd2vrql9656a2fkwk948r38mgai-coreutils-9.3/bin/mktemp --suffix=.start-env
+EXIT: ts=595498820,pid=170921,ppid=170907,pgid=170921
+FORK: ts=595561904,parent_pid=170907,child_pid=170922,parent_pgid=170896,
+FORK: ts=595648821,parent_pid=170907,child_pid=170923,parent_pgid=170896,
+EXEC: ts=595800406,pid=170923,ppid=170907,pgid=170923
+EXEC_ARGS: ts=595800406,pid=170923,/nix/store/zzmqcgd2vrql9656a2fkwk948r38mgai-coreutils-9.3/bin/sort
+EXIT: ts=595820490,pid=170922,ppid=170907,pgid=170922
+EXIT: ts=596400621,pid=170923,ppid=170907,pgid=170923
+FORK: ts=596583914,parent_pid=170907,child_pid=170924,parent_pgid=170896,
+EXIT: ts=596898209,pid=170924,ppid=170907,pgid=170924
+FORK: ts=597235796,parent_pid=170907,child_pid=170925,parent_pgid=170896,
+EXEC: ts=597405756,pid=170925,ppid=170907,pgid=170925
+EXEC_ARGS: ts=597405756,pid=170925,/nix/store/zzmqcgd2vrql9656a2fkwk948r38mgai-coreutils-9.3/bin/uname -s
+EXIT: ts=597891135,pid=170925,ppid=170907,pgid=170925
+FORK: ts=598409016,parent_pid=170907,child_pid=170926,parent_pgid=170896,
+FORK: ts=598705602,parent_pid=170926,child_pid=170927,parent_pgid=170907,
+FORK: ts=598815478,parent_pid=170926,child_pid=170928,parent_pgid=170907,
+EXEC: ts=598883437,pid=170927,ppid=170926,pgid=170927
+EXEC_ARGS: ts=598883437,pid=170927,/nix/store/5bickbj8vq0qc1ask0cbn3qqf94a9p0c-findutils-4.9.0/bin/find /dev -maxdepth 1 -iname nvidia* -o -iname dxg
+EXIT: ts=600294659,pid=170927,ppid=170926,pgid=170927
+EXIT: ts=600309659,pid=170928,ppid=170926,pgid=170928
+EXIT: ts=600425619,pid=170926,ppid=170907,pgid=170926
+FORK: ts=600670246,parent_pid=170907,child_pid=170929,parent_pgid=170896,
+EXEC: ts=600921207,pid=170929,ppid=170907,pgid=170929
+EXEC_ARGS: ts=600921207,pid=170929,/nix/store/zzmqcgd2vrql9656a2fkwk948r38mgai-coreutils-9.3/bin/mktemp --suffix=.170907.end-env
+EXIT: ts=601542005,pid=170929,ppid=170907,pgid=170929
+FORK: ts=601598297,parent_pid=170907,child_pid=170930,parent_pgid=170896,
+FORK: ts=601698048,parent_pid=170907,child_pid=170931,parent_pgid=170896,
+EXEC: ts=601888467,pid=170931,ppid=170907,pgid=170931
+EXEC_ARGS: ts=601888467,pid=170931,/nix/store/zzmqcgd2vrql9656a2fkwk948r38mgai-coreutils-9.3/bin/sort
+EXIT: ts=602085219,pid=170930,ppid=170907,pgid=170930
+EXIT: ts=602604557,pid=170931,ppid=170907,pgid=170931
+FORK: ts=602701266,parent_pid=170907,child_pid=170932,parent_pgid=170896,
+EXEC: ts=602967061,pid=170932,ppid=170907,pgid=170932
+EXEC_ARGS: ts=602967061,pid=170932,/nix/store/zzmqcgd2vrql9656a2fkwk948r38mgai-coreutils-9.3/bin/mktemp --suffix=.170907.add-env
+EXIT: ts=603595192,pid=170932,ppid=170907,pgid=170932
+FORK: ts=603681776,parent_pid=170907,child_pid=170933,parent_pgid=170896,
+EXEC: ts=603920487,pid=170933,ppid=170907,pgid=170933
+EXEC_ARGS: ts=603920487,pid=170933,/nix/store/zzmqcgd2vrql9656a2fkwk948r38mgai-coreutils-9.3/bin/mktemp --suffix=.170907.del-env
+EXIT: ts=604566077,pid=170933,ppid=170907,pgid=170933
+FORK: ts=604673369,parent_pid=170907,child_pid=170934,parent_pgid=170896,
+FORK: ts=604793704,parent_pid=170907,child_pid=170935,parent_pgid=170896,
+EXEC: ts=604890788,pid=170934,ppid=170907,pgid=170934
+EXEC_ARGS: ts=604890788,pid=170934,/nix/store/zzmqcgd2vrql9656a2fkwk948r38mgai-coreutils-9.3/bin/comm -13 /tmp/tmp.vaDYJogZJN.start-env /tmp/tmp.9ITtbVFVcP.170907.end-env
+EXEC: ts=604979914,pid=170935,ppid=170907,pgid=170935
+EXEC_ARGS: ts=604979914,pid=170935,/nix/store/ha241bhagian5dbg9ddi2b6y2m449fh1-gnused-4.9/bin/sed -e s/^declare -x //
+EXIT: ts=605656587,pid=170934,ppid=170907,pgid=170934
+EXIT: ts=606262718,pid=170935,ppid=170907,pgid=170935
+FORK: ts=606335886,parent_pid=170907,child_pid=170936,parent_pgid=170896,
+FORK: ts=606490179,parent_pid=170907,child_pid=170937,parent_pgid=170896,
+EXEC: ts=606567888,pid=170936,ppid=170907,pgid=170936
+EXEC_ARGS: ts=606567888,pid=170936,/nix/store/zzmqcgd2vrql9656a2fkwk948r38mgai-coreutils-9.3/bin/comm -23 /tmp/tmp.vaDYJogZJN.start-env /tmp/tmp.9ITtbVFVcP.170907.end-env
+EXEC: ts=606673472,pid=170937,ppid=170907,pgid=170937
+EXEC_ARGS: ts=606673472,pid=170937,/nix/store/ha241bhagian5dbg9ddi2b6y2m449fh1-gnused-4.9/bin/sed -e s/^declare -x // -e s/=.*//
+EXIT: ts=607327312,pid=170936,ppid=170907,pgid=170936
+EXIT: ts=607879109,pid=170937,ppid=170907,pgid=170937
+FORK: ts=607970944,parent_pid=170907,child_pid=170938,parent_pgid=170896,
+EXEC: ts=608128112,pid=170938,ppid=170907,pgid=170938
+EXEC_ARGS: ts=608128112,pid=170938,/nix/store/zzmqcgd2vrql9656a2fkwk948r38mgai-coreutils-9.3/bin/rm -f /tmp/tmp.vaDYJogZJN.start-env /tmp/tmp.9ITtbVFVcP.170907.end-env
+EXIT: ts=608815535,pid=170938,ppid=170907,pgid=170938
+EXEC: ts=609052621,pid=170907,ppid=170896,pgid=170907
+EXEC_ARGS: ts=609052621,pid=170907,/bin/bash --noprofile --rcfile /home/zmitchell/code/proctrace/.flox/run/aarch64-linux.proctrace/activate.d/bash -c sleep 1
+EXEC: ts=609913005,pid=170907,ppid=170896,pgid=170907
+EXEC_ARGS: ts=609913005,pid=170907,sleep 1
+EXIT: ts=1615488264,pid=170907,ppid=170896,pgid=170907
+EXIT: ts=1624728106,pid=170919,ppid=1,pgid=170919
