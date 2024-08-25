@@ -8,9 +8,12 @@ anyhow = "1.0.86"
 clap = { version = "4.5.13", features = ["derive", "wrap_help"] }
 clap_derive = "4.5.13"
 nix = "0.29.0"
-procfs = "0.16.0"
+procfs = { version = "0.16.0", optional = true }
 regex-lite = "0.1.6"
 serde = {version = "1", features = ["derive"]}
 serde_json = "1"
 shellish_parse = "2.2.0"
 signal-hook = "0.3.17"
+
+[features]
+record = ["dep:procfs"]

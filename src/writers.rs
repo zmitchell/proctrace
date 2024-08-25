@@ -24,25 +24,39 @@ impl<T> JsonWriter<T> {
 impl<T: Write> EventWrite for JsonWriter<T> {
     fn write_event(&mut self, event: &Event) -> Result<(), Error> {
         serde_json::to_writer(&mut self.inner, event).context("failed to write json event")?;
-        self.inner.write(b"\n")?;
+        let _ = self.inner.write(b"\n")?;
         Ok(())
     }
 }
 
 #[derive(Debug)]
-pub(crate) struct MockWriter {
-    pub(crate) events: Vec<Event>,
-}
+pub(crate) struct NoOpWriter;
 
-impl MockWriter {
-    pub fn new() -> Self {
-        Self { events: vec![] }
+impl EventWrite for NoOpWriter {
+    fn write_event(&mut self, _event: &Event) -> Result<(), Error> {
+        Ok(())
     }
 }
 
-impl EventWrite for MockWriter {
-    fn write_event(&mut self, event: &Event) -> Result<(), Error> {
-        self.events.push(event.clone());
-        Ok(())
+#[cfg(test)]
+pub mod test {
+    use super::*;
+
+    #[derive(Debug)]
+    pub(crate) struct MockWriter {
+        pub(crate) events: Vec<Event>,
+    }
+
+    impl MockWriter {
+        pub fn new() -> Self {
+            Self { events: vec![] }
+        }
+    }
+
+    impl EventWrite for MockWriter {
+        fn write_event(&mut self, event: &Event) -> Result<(), Error> {
+            self.events.push(event.clone());
+            Ok(())
+        }
     }
 }

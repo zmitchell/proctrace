@@ -236,6 +236,17 @@ impl<T: EventWrite> EventIngester<T> {
         }
     }
 
+    /// Returns a copy of the stored events.
+    pub fn events(&self) -> ProcEvents {
+        self.events.clone()
+    }
+
+    /// Returns the configured `root_pid` if one has been set.
+    #[allow(dead_code)]
+    pub fn root_pid(&self) -> Option<i32> {
+        self.root_pid
+    }
+
     /// Returns `Some(true)` if the event is the initial fork of the process at the root
     /// of the process tree or `Some(false)` if it isn't. Returns `None` if the root pid
     /// has not yet been set.
@@ -248,6 +259,7 @@ impl<T: EventWrite> EventIngester<T> {
     /// Returns `true` if we've seen the initial fork of the process at the root
     /// of the process tree. Returns `false` if the root pid is unset or it's set
     /// and we haven't been the fork.
+    #[allow(dead_code)]
     fn have_seen_initial_fork(&self) -> bool {
         !self.events.is_empty()
     }
@@ -337,11 +349,10 @@ impl<T: EventWrite> EventIngester<T> {
                         return None;
                     }
                     if let Some(parent_pid) = events.front().and_then(|event| event.fork_parent()) {
-                        if self.pid_is_tracked(parent_pid) {
-                            Some(*pid)
-                        } else if self.pid_is_tracked(*pid) {
-                            Some(*pid)
-                        } else if pids_to_unbuffer.contains(&parent_pid) {
+                        let should_store = self.pid_is_tracked(parent_pid)
+                            || self.pid_is_tracked(*pid)
+                            || pids_to_unbuffer.contains(&parent_pid);
+                        if should_store {
                             Some(*pid)
                         } else {
                             None
@@ -509,7 +520,7 @@ pub fn ingest_raw<W: EventWrite>(
 
 #[cfg(test)]
 mod test {
-    use crate::writers::MockWriter;
+    use crate::writers::test::MockWriter;
 
     use super::*;
 
@@ -673,8 +684,7 @@ mod test {
         let root_pid = 3;
         // The event that _would_ be detected as the first fork is:
         // ("fork", <root_pid>, <anything>)
-        let dummy_events =
-            make_simple_events(0, &vec![("exec", 1, 0), ("fork", 2, 1), ("fork", 4, 2)]);
+        let dummy_events = make_simple_events(0, &[("exec", 1, 0), ("fork", 2, 1), ("fork", 4, 2)]);
         let mut ingester = mock_ingester(Some(root_pid));
         for event in dummy_events.iter() {
             ingester.observe_event(event).unwrap();
@@ -700,7 +710,7 @@ mod test {
     fn drains_buffered_events_from_initial_fork() {
         let root_pid = 1; // This is the child PID of the fork
         let dummy_events =
-            make_simple_events(1, &vec![("exec", root_pid, 0), ("exec_args", root_pid, 0)]);
+            make_simple_events(1, &[("exec", root_pid, 0), ("exec_args", root_pid, 0)]);
 
         let mut ingester = mock_ingester(Some(root_pid));
         for event in dummy_events.iter() {
@@ -740,7 +750,7 @@ mod test {
         let root_pid = 1; // This is the child PID of the fork
         let events = make_simple_events(
             1,
-            &vec![
+            &[
                 ("fork", root_pid, 0),
                 ("exec", root_pid, 0),
                 ("exec_args", root_pid, 0),
@@ -771,7 +781,7 @@ mod test {
         let root_pid = 1;
         let events = make_simple_events(
             0,
-            &vec![
+            &[
                 ("fork", root_pid, 0),
                 ("exec", root_pid, 0),
                 ("exec_args", root_pid, 0),
@@ -785,7 +795,7 @@ mod test {
 
         let new_events = make_simple_events(
             3,
-            &vec![
+            &[
                 ("fork", 2, root_pid),
                 ("exec", 2, root_pid),
                 ("exec_args", 2, root_pid),

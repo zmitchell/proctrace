@@ -3,14 +3,18 @@ use clap::Parser;
 use cli::Command;
 use ingest::ingest_raw;
 use models::Event;
+#[cfg(record)]
 use record::record;
 use render::render;
 use serde_json::Deserializer;
 use std::{
     io::{stdin, BufReader},
     path::Path,
-    sync::{atomic::AtomicBool, Arc},
 };
+
+#[cfg(record)]
+use std::sync::{atomic::AtomicBool, Arc};
+
 use utils::{
     make_path_absolute, new_buffered_input_stream, new_buffered_output_stream, new_output_file,
 };
@@ -20,6 +24,7 @@ use anyhow::Context;
 
 type Error = anyhow::Error;
 
+#[cfg(record)]
 const SCRIPT: &'static str = include_str!("../assets/proctrace.bt");
 
 mod cli;
@@ -34,6 +39,7 @@ fn main() -> Result<(), Error> {
     let args = Cli::parse();
 
     match args.command {
+        #[cfg(record)]
         Command::Record(args) => {
             if args.cmd.is_empty() {
                 anyhow::bail!("must provide a command to run");

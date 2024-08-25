@@ -1,8 +1,4 @@
-use std::{
-    collections::{BTreeMap, VecDeque},
-    io::Read,
-    path::Path,
-};
+use std::{io::Read, path::Path};
 
 use anyhow::{anyhow, Context};
 use regex_lite::Regex;
@@ -10,8 +6,9 @@ use serde_json::Deserializer;
 
 use crate::{
     cli::DisplayMode,
+    ingest::EventIngester,
     models::{Event, ProcEvents},
-    record::ingest_event,
+    writers::NoOpWriter,
 };
 
 type Error = anyhow::Error;
@@ -23,7 +20,6 @@ pub fn render(reader: impl Read, mode: DisplayMode) -> Result<(), Error> {
 }
 
 pub fn read_events(reader: impl Read) -> Result<(ProcEvents, i32), Error> {
-    let mut proc_events = BTreeMap::new();
     let mut de = Deserializer::from_reader(reader).into_iter::<Event>();
     let first_event = match de.next() {
         Some(Ok(event)) => event,
@@ -33,21 +29,20 @@ pub fn read_events(reader: impl Read) -> Result<(ProcEvents, i32), Error> {
     let Event::Exec { ref pid, .. } = first_event else {
         return Err(anyhow!("first event was not an exec"));
     };
+    let mut ingester: EventIngester<NoOpWriter> = EventIngester::new(Some(*pid), None);
     let root_pid = *pid;
-    let mut events = VecDeque::new();
-    events.push_back(first_event);
-    proc_events.insert(root_pid, events);
+    ingester.observe_event(&first_event)?;
     for maybe_event in de {
         match maybe_event {
             Ok(event) => {
-                let _ = ingest_event(&event, &mut proc_events, root_pid, false);
+                ingester.observe_event(&event)?;
             }
             Err(err) => {
                 eprintln!("failed to parse event: {err}");
             }
         }
     }
-    Ok((proc_events, root_pid))
+    Ok((ingester.events(), root_pid))
 }
 
 pub fn render_events(proc_events: ProcEvents, user_cmd_pid: i32, mode: DisplayMode) {
@@ -97,9 +92,8 @@ fn print_mermaid_output(root_pid: i32, mut events: ProcEvents) {
     // chosen the timestamp of the second event.
     let mut sorted = events
         .clone()
-        .into_iter()
-        .map(|(_pid, proc_events)| proc_events.into_iter())
-        .flatten()
+        .into_values()
+        .flat_map(|proc_events| proc_events.into_iter())
         .collect::<Vec<Event>>();
     sorted.sort_by_key(Event::timestamp);
     let second_ts = sorted[1].timestamp();
@@ -161,7 +155,7 @@ fn next_child_pid(parent: i32, events: &ProcEvents) -> Option<i32> {
         })
         .collect::<Vec<_>>();
     pid_starts.sort_by_key(|(_, ts)| **ts);
-    pid_starts.first().map(|(pid, _)| *pid).clone()
+    pid_starts.first().map(|(pid, _)| *pid)
 }
 
 fn print_spans_for_process(proc_events: &[Event], buf: &mut String, initial_time: u128) {
@@ -178,7 +172,7 @@ fn print_spans_for_process(proc_events: &[Event], buf: &mut String, initial_time
         );
         if first_exec != 0 {
             // Must have started with a `fork`
-            let start = proc_events.get(0).unwrap();
+            let start = proc_events.first().unwrap();
             let stop = proc_events.get(first_exec).unwrap();
             single_exec_span(
                 start,
