@@ -23,9 +23,12 @@ rust-analyzer.pkg-group = "rust-analyzer"
 gcc.pkg-path = "gcc"
 gcc.systems = ["aarch64-linux", "x86_64-linux"]
 
+# Runtime dependencies
+bpftrace.pkg-path = "bpftrace"
+bpftrace.systems = ["aarch64-linux", "x86_64-linux"]
+
 # Extra tools
 cargo-nextest.pkg-path = "cargo-nextest"
-bpftrace.pkg-path = "bpftrace"
 just.pkg-path = "just"
 mermaid-cli.pkg-path = "mermaid-cli"
 
@@ -39,5 +42,5 @@ on-activate = '''
 [profile]
 
 [options]
-systems = ["aarch64-linux", "x86_64-linux"]
+systems = ["aarch64-darwin", "aarch64-linux", "x86_64-linux"]
 
