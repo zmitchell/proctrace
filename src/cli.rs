@@ -38,7 +38,7 @@ pub enum Command {
     /// may not be in the PATH of the superuser. If this is the case then you
     /// can use the `--bpftrace-path` flag to specify it manually. This is likely
     /// the case if you've installed `bpftrace` via `flox` or `nix profile install`.
-    #[cfg(record)]
+    #[cfg(feature = "record")]
     Record(RecordArgs),
 
     /// Convert a raw recording into a processed recording such that it is ready for rendering.
@@ -61,7 +61,7 @@ pub enum Command {
 }
 
 #[derive(Debug, Clone, Args, PartialEq, Eq)]
-#[cfg(record)]
+#[cfg(feature = "record")]
 pub struct RecordArgs {
     /// The path to a `bpftrace` executable.
     ///

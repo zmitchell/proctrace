@@ -1,7 +1,7 @@
-#[cfg(record)]
+#[cfg(feature = "record")]
 pub use has_record_support::*;
 
-#[cfg(record)]
+#[cfg(feature = "record")]
 mod has_record_support {
 
     use std::{
