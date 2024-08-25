@@ -1,0 +1,32 @@
+EXEC: ts=3278537126,pid=233372,ppid=233361,pgid=233372
+EXEC_ARGS: ts=3278537126,pid=233372,flox activate -- sleep 1
+EXEC: ts=3280013956,pid=233372,ppid=233361,pgid=233372
+EXEC_ARGS: ts=3280013956,pid=233372,flox activate -- sleep 1
+EXEC: ts=3280115955,pid=233372,ppid=233361,pgid=233372
+EXEC_ARGS: ts=3280115955,pid=233372,flox activate -- sleep 1
+FORK: ts=3273157142,parent_pid=233361,child_pid=233372,parent_pgid=187110,
+EXEC: ts=3281100536,pid=233372,ppid=233361,pgid=233372
+EXEC_ARGS: ts=3281100536,pid=233372,flox activate -- sleep 1
+EXEC: ts=3334380424,pid=233384,ppid=233372,pgid=233384
+EXEC_ARGS: ts=3334380424,pid=233384,/nix/store/gbg2xq3si9vf8w9pi3lywf83bs6rz74w-flox-watchdog-1.2.3/bin/flox-watchdog --pid 233372 --logs /home/zmitchell/code/proctrace/.flox/cache/watchdog.233372.log --socket /run/user/1000/flox.5ae6e2f1.sock --hash 5ae6e2f1 --registry /home/zmitchell/.local/share/flox/env-registry.json
+FORK: ts=3334330841,parent_pid=233372,child_pid=233384,parent_pgid=233361,
+EXEC: ts=3334677549,pid=233372,ppid=233361,pgid=233372
+EXEC_ARGS: ts=3334677549,pid=233372,/home/zmitchell/code/proctrace/.flox/run/aarch64-linux.proctrace/activate -c sleep 1
+FORK: ts=3337277166,parent_pid=233372,child_pid=233385,parent_pgid=233361,
+EXEC: ts=3337580957,pid=233385,ppid=233372,pgid=233385
+EXEC_ARGS: ts=3337580957,pid=233385,/nix/store/zzmqcgd2vrql9656a2fkwk948r38mgai-coreutils-9.3/bin/dirname -- /home/zmitchell/code/proctrace/.flox/run/aarch64-linux.proctrace/activate
+EXIT: ts=3338440704,pid=233385,ppid=233372,pgid=233385
+FORK: ts=3338882953,parent_pid=233372,child_pid=233386,parent_pgid=233361,
+EXEC: ts=3339144036,pid=233386,ppid=233372,pgid=233386
+EXEC_ARGS: ts=3339144036,pid=233386,/nix/store/ha241bhagian5dbg9ddi2b6y2m449fh1-gnused-4.9/bin/sed -e s/^/unset / -e s/$/;/ /tmp/tmp.lYuyiAQWpD.187110.del-env
+EXIT: ts=3340420032,pid=233386,ppid=233372,pgid=233386
+FORK: ts=3340555657,parent_pid=233372,child_pid=233387,parent_pgid=233361,
+EXEC: ts=3340891906,pid=233387,ppid=233372,pgid=233387
+EXEC_ARGS: ts=3340891906,pid=233387,/nix/store/ha241bhagian5dbg9ddi2b6y2m449fh1-gnused-4.9/bin/sed -e s/^/export / -e s/$/;/ /tmp/tmp.lYrLEQQWcd.187110.add-env
+EXIT: ts=3342103819,pid=233387,ppid=233372,pgid=233387
+EXEC: ts=3342506818,pid=233372,ppid=233361,pgid=233372
+EXEC_ARGS: ts=3342506818,pid=233372,/bin/bash --noprofile --rcfile /home/zmitchell/code/proctrace/.flox/run/aarch64-linux.proctrace/activate.d/bash -c sleep 1
+EXEC: ts=3343273066,pid=233372,ppid=233361,pgid=233372
+EXEC_ARGS: ts=3343273066,pid=233372,sleep 1
+EXIT: ts=51297225,pid=233372,ppid=233361,pgid=233372
+EXIT: ts=55072256,pid=233384,ppid=1,pgid=233384
