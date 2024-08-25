@@ -340,7 +340,7 @@ impl<T: EventWrite> EventIngester<T> {
         // Iteratively grab any PIDs that are children of other PIDs in the buffer that we've decided
         // we can remove. Do this until there are no PIDs that can be removed.
         loop {
-            let can_be_unbuffered = self
+            let more_to_unbuffer = self
                 .buffered
                 .iter()
                 .filter_map(|(pid, events)| {
@@ -362,10 +362,10 @@ impl<T: EventWrite> EventIngester<T> {
                     }
                 })
                 .collect::<HashSet<_>>();
-            if can_be_unbuffered.is_empty() {
+            if more_to_unbuffer.is_empty() {
                 break;
             } else {
-                for pid in can_be_unbuffered.iter() {
+                for pid in more_to_unbuffer.iter() {
                     pids_to_unbuffer.insert(*pid);
                 }
             }
