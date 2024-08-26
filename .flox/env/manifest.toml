@@ -37,6 +37,7 @@ mermaid-cli.pkg-path = "mermaid-cli"
 [hook]
 on-activate = '''
   export RUST_SRC_PATH="$FLOX_ENV"
+  export PATH="$PWD/target/debug:$PATH"
 '''
 
 [profile]

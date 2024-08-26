@@ -53,7 +53,7 @@
     },
     "vars": {},
     "hook": {
-      "on-activate": "  export RUST_SRC_PATH=\"$FLOX_ENV\"\n"
+      "on-activate": "  export RUST_SRC_PATH=\"$FLOX_ENV\"\n  export PATH=\"$PWD/target/debug:$PATH\"\n"
     },
     "profile": {},
     "options": {
