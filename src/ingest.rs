@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    models::{Event, ProcEvents},
+    models::{Event, EventStore},
     writers::EventWrite,
 };
 use anyhow::{anyhow, Context};
@@ -216,8 +216,8 @@ impl EventParser {
 #[derive(Debug)]
 pub struct EventIngester<T> {
     root_pid: Option<i32>,
-    events: ProcEvents,
-    buffered: ProcEvents,
+    events: EventStore,
+    buffered: EventStore,
     pub(crate) writer: Option<T>,
 }
 
@@ -230,15 +230,15 @@ impl<T: EventWrite> EventIngester<T> {
     pub fn new(root_pid: Option<i32>, writer: Option<T>) -> Self {
         Self {
             root_pid,
-            events: BTreeMap::new(),
-            buffered: BTreeMap::new(),
+            events: EventStore::new(),
+            buffered: EventStore::new(),
             writer,
         }
     }
 
     /// Returns a copy of the stored events.
-    pub fn events(&self) -> ProcEvents {
-        self.events.clone()
+    pub fn into_events(self) -> EventStore {
+        self.events
     }
 
     /// Returns the configured `root_pid` if one has been set.
@@ -267,34 +267,22 @@ impl<T: EventWrite> EventIngester<T> {
     /// Adds the event to the backlog of outstanding events that we've seen and
     /// might want to keep.
     fn buffer_event(&mut self, event: &Event) {
-        Self::insert_event(&mut self.buffered, event);
+        self.buffered.add(event.pid(), event);
     }
 
     /// Adds the event to the tracked process tree.
     fn store_event(&mut self, event: &Event) {
-        Self::insert_event(&mut self.events, event);
+        self.events.add(event.pid(), event);
     }
 
     /// Returns true if this ingester is tracking the provided PID.
     fn pid_is_tracked(&self, pid: i32) -> bool {
-        self.events.contains_key(&pid)
+        self.events.pid_is_tracked(pid)
     }
 
-    /// Adds the provided event to an event store while maintaining timestamp-sorted order
-    /// for the events of the same PID.
-    fn insert_event(event_store: &mut ProcEvents, event: &Event) {
-        let events = event_store.entry(event.pid()).or_default();
-        let insert_point =
-            match events.binary_search_by_key(&event.timestamp(), |event| event.timestamp()) {
-                Ok(found_idx) => found_idx + 1,
-                Err(candidate_idx) => candidate_idx,
-            };
-        events.insert(insert_point, event.clone());
-    }
-
-    fn register_initial_fork(&mut self) -> Result<(), Error> {
+    fn register_initial_fork(&mut self, event: &Event) -> Result<(), Error> {
         if let Some(root_pid) = self.root_pid {
-            self.events.insert(root_pid, VecDeque::new());
+            self.events.add(root_pid, event);
             Ok(())
         } else {
             Err(anyhow!(
@@ -311,57 +299,43 @@ impl<T: EventWrite> EventIngester<T> {
     fn drain_buffer(&mut self) -> Result<(), Error> {
         // Grab any PIDs that are already tracked or that are direct children of PIDs that are already
         // tracked.
-        let mut pids_to_unbuffer = self
-            .buffered
-            .iter()
-            .filter_map(|(pid, events)| {
-                if let Some(parent_pid) = events.front().and_then(|event| event.fork_parent()) {
-                    // If the first event is a fork and we're tracking its parent, prepare to unbuffer
-                    // this PID.
-                    if self.pid_is_tracked(parent_pid) {
-                        Some(*pid)
-                    } else if self.pid_is_tracked(*pid) {
-                        // This is the branch we'll hit for the initial fork since the first event is
-                        // a fork but the parent *isn't* tracked (and won't be).
-                        Some(*pid)
-                    } else {
-                        None
-                    }
-                } else if self.pid_is_tracked(*pid) {
-                    // If we're already tracking this PID (only really possible if this is being called
-                    // immediately after seeing the initial fork), prepare to unbuffer this PID.
-                    Some(*pid)
-                } else {
-                    None
+        let currently_tracked = self.events.currently_tracked();
+        let currently_buffered = self.buffered.currently_tracked();
+
+        let mut pids_to_unbuffer = HashSet::new();
+        for pid in currently_buffered.iter() {
+            if let Some(parent_pid) = self.buffered.parent(*pid) {
+                if currently_tracked.contains(&parent_pid) {
+                    pids_to_unbuffer.insert(pid);
                 }
-            })
-            .collect::<HashSet<i32>>();
+            } else if currently_tracked.contains(pid) {
+                pids_to_unbuffer.insert(pid);
+            }
+        }
 
         // Iteratively grab any PIDs that are children of other PIDs in the buffer that we've decided
         // we can remove. Do this until there are no PIDs that can be removed.
         loop {
-            let more_to_unbuffer = self
-                .buffered
-                .iter()
-                .filter_map(|(pid, events)| {
+            let more_to_unbuffer = {
+                let mut more = HashSet::new();
+                for pid in currently_buffered.iter() {
                     if pids_to_unbuffer.contains(pid) {
-                        // Don't include PIDs we've already marked for unbuffering
-                        return None;
+                        // We've already recorded this PID
+                        continue;
                     }
-                    if let Some(parent_pid) = events.front().and_then(|event| event.fork_parent()) {
-                        let should_store = self.pid_is_tracked(parent_pid)
-                            || self.pid_is_tracked(*pid)
-                            || pids_to_unbuffer.contains(&parent_pid);
-                        if should_store {
-                            Some(*pid)
-                        } else {
-                            None
+                    // If the parent is already tracked or has been recorded, record the child.
+                    if let Some(parent_pid) = self.buffered.parent(*pid) {
+                        if currently_tracked.contains(&parent_pid)
+                            || pids_to_unbuffer.contains(&parent_pid)
+                        {
+                            more.insert(pid);
                         }
-                    } else {
-                        None
+                    } else if currently_tracked.contains(pid) {
+                        more.insert(pid);
                     }
-                })
-                .collect::<HashSet<_>>();
+                }
+                more
+            };
             if more_to_unbuffer.is_empty() {
                 break;
             } else {
@@ -371,14 +345,14 @@ impl<T: EventWrite> EventIngester<T> {
             }
         }
 
-        // Now that we know which PIDs to drain from the buffer, remove those individual
+        // Now that we know which PIDs to drain from the store, remove those individual
         // event buffers so we can write out their events.
         let mut drained_events = vec![];
         for pid in pids_to_unbuffer.iter() {
             drained_events.push((
                 *pid,
                 self.buffered
-                    .remove(pid)
+                    .remove(**pid)
                     .ok_or(anyhow!("buffered PID {pid} not found"))?,
             ));
         }
@@ -390,8 +364,7 @@ impl<T: EventWrite> EventIngester<T> {
         });
         // Track this pid from now on
         for (pid, events) in drained_events.iter() {
-            let existing_events = self.events.entry(*pid).or_default();
-            existing_events.extend(events.iter().cloned());
+            self.events.add_many(**pid, events.iter());
         }
         // Write out the previously buffered events
         for (_pid, events) in drained_events.drain(..) {
@@ -422,17 +395,14 @@ impl<T: EventWrite> EventIngester<T> {
     }
 
     pub fn observe_event(&mut self, event: &Event) -> Result<(), Error> {
-        if self.events.contains_key(&event.pid()) {
+        if self.events.pid_is_tracked(event.pid()) {
             // We're already tracking this PID, so just store the latest event
             self.store_event(event);
             self.maybe_write_event(event)?;
-        } else if self
-            .is_initial_fork(event)
-            .is_some_and(|is_initial_fork| is_initial_fork)
-        {
+        } else if self.is_initial_fork(event).unwrap_or(false) {
             // We aren't tracking any PIDs yet, and this will be the first
-            self.buffer_event(event);
-            self.register_initial_fork()?;
+            self.store_event(event);
+            self.maybe_write_event(event)?;
         } else {
             // We can't tell if we need this event yet, so buffer it and maybe
             // it will get drained later.
@@ -444,14 +414,7 @@ impl<T: EventWrite> EventIngester<T> {
     }
 
     pub fn unfinished_pids(&self) -> Vec<i32> {
-        self.events
-            .iter()
-            .filter_map(|(pid, events)| match events.back() {
-                Some(Event::Exit { .. }) => None,
-                Some(event) => Some(event.pid()),
-                None => Some(*pid),
-            })
-            .collect::<Vec<_>>()
+        self.events.unfinished_pids().collect::<Vec<_>>()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -519,14 +482,17 @@ pub fn ingest_raw<W: EventWrite>(
 // - pid_is_finished(pid)
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     use crate::writers::test::MockWriter;
 
     use super::*;
 
     /// Make a sequence of events from a shorthand:
     /// ("<lowercase event name>,<pid>,<parent_pid>")
-    fn make_simple_events(initial_timestamp: u128, protos: &[(&str, i32, i32)]) -> Vec<Event> {
+    pub(crate) fn make_simple_events(
+        initial_timestamp: u128,
+        protos: &[(&str, i32, i32)],
+    ) -> Vec<Event> {
         let mut events = vec![];
         let mut timestamp = initial_timestamp;
         for (name, pid, ppid) in protos {
@@ -737,7 +703,7 @@ mod test {
         assert!(matches!(written_events[0], Event::Fork { .. }));
 
         // Assert that the PID is now being tracked
-        let root_events = ingester.events.get(&root_pid).unwrap();
+        let root_events = ingester.events.remove(root_pid).unwrap();
         assert_eq!(root_events.len(), 3);
         assert!(matches!(
             root_events.front().unwrap(),
@@ -747,6 +713,34 @@ mod test {
 
     #[test]
     fn stores_events_from_tracked_pid() {
+        let root_pid = 1;
+        let events = make_simple_events(
+            1,
+            &[
+                ("exec", root_pid, 0),
+                ("exec", root_pid, 0),
+                ("exec", root_pid, 0),
+            ],
+        );
+        let mut ingester = mock_ingester(Some(root_pid));
+        // Ensure that the root PID is tracked
+        ingester.events.register_root(root_pid);
+
+        for event in events.iter() {
+            ingester.observe_event(event).unwrap();
+        }
+
+        // Assert that all of the events were written
+        let written_events = ingester.writer.as_ref().unwrap().events.clone();
+        assert_eq!(written_events.len(), 3);
+
+        // Assert that the PID is now being tracked
+        let root_events = ingester.events.remove(root_pid).unwrap();
+        assert_eq!(root_events.len(), 3);
+    }
+
+    #[test]
+    fn stores_events_from_initial_fork() {
         let root_pid = 1; // This is the child PID of the fork
         let events = make_simple_events(
             1,
@@ -768,7 +762,7 @@ mod test {
         assert!(matches!(written_events[0], Event::Fork { .. }));
 
         // Assert that the PID is now being tracked
-        let root_events = ingester.events.get(&root_pid).unwrap();
+        let root_events = ingester.events.remove(root_pid).unwrap();
         assert_eq!(root_events.len(), 3);
         assert!(matches!(
             root_events.front().unwrap(),
@@ -805,7 +799,7 @@ mod test {
             ingester.observe_event(event).unwrap();
         }
 
-        let recorded_new_events = ingester.events.get(&2).unwrap();
+        let recorded_new_events = ingester.events.remove(2).unwrap();
         assert_eq!(recorded_new_events.len(), 3);
     }
 }

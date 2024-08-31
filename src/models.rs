@@ -1,8 +1,6 @@
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, HashSet, VecDeque};
 
 use serde::{Deserialize, Serialize};
-
-pub type ProcEvents = BTreeMap<i32, VecDeque<Event>>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(dead_code)]
@@ -44,6 +42,20 @@ pub enum Event {
         ppid: i32,
         pgid: i32,
     },
+}
+
+impl PartialOrd for Event {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Event {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let timestamp = self.timestamp();
+        let other_timestamp = other.timestamp();
+        timestamp.cmp(&other_timestamp)
+    }
 }
 
 impl Event {
@@ -99,5 +111,153 @@ impl Event {
     #[allow(dead_code)]
     pub fn is_exit(&self) -> bool {
         matches!(self, Event::Exit { .. })
+    }
+}
+
+/// A store for events received while recording or ingesting
+/// a trace.
+#[derive(Debug, Default)]
+pub struct EventStore {
+    // TODO: add initialization typestate?
+    // We could parameterize this struct with a typestate representing whether the
+    // root PID has been initialized or not. Afterwards we could make the `add` method
+    // only available on the initialized variant. Not sure if that's worth the effort
+    // or if it would just make things more complicated at the call sites in `record`.
+    inner: BTreeMap<i32, VecDeque<Event>>,
+}
+
+impl EventStore {
+    /// Creates a new event store.
+    pub fn new() -> Self {
+        Self {
+            inner: BTreeMap::new(),
+        }
+    }
+
+    /// Store a new event for a given PID.
+    pub fn add(&mut self, pid: i32, event: &Event) {
+        let events = self.inner.entry(pid).or_default();
+        // Events are stored in timestamp-sorted order
+        let insert_point =
+            match events.binary_search_by_key(&event.timestamp(), |event| event.timestamp()) {
+                Ok(found_idx) => found_idx + 1,
+                Err(candidate_idx) => candidate_idx,
+            };
+        events.insert(insert_point, event.clone());
+    }
+
+    /// Add several events from the same PID.
+    pub fn add_many<'a>(&mut self, pid: i32, new_events: impl Iterator<Item = &'a Event>) {
+        for event in new_events {
+            self.add(pid, event);
+        }
+    }
+
+    /// Remove and return the buffer of events for this PID.
+    pub fn remove(&mut self, pid: i32) -> Option<VecDeque<Event>> {
+        self.inner.remove(&pid)
+    }
+
+    /// Initializes a PID as the root PID for the store.
+    pub fn register_root(&mut self, pid: i32) {
+        eprintln!("root was registered");
+        debug_assert!(self.inner.is_empty());
+        self.inner.insert(pid, VecDeque::new());
+    }
+
+    /// Returns `true` if the provided PID is being tracked by this event store.
+    pub fn pid_is_tracked(&self, pid: i32) -> bool {
+        self.inner.contains_key(&pid)
+    }
+
+    /// Returns an iterator over the PIDs of processes that haven't yet finished.
+    #[allow(clippy::needless_lifetimes)]
+    pub fn unfinished_pids<'a>(&'a self) -> impl Iterator<Item = i32> + 'a {
+        self.inner
+            .iter()
+            .filter_map(|(pid, events)| match events.back() {
+                Some(Event::Exit { .. }) => None,
+                Some(event) => Some(event.pid()),
+                None => Some(*pid),
+            })
+    }
+
+    /// Returns `true` if no PIDs have been registered.
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    /// Returns the set of currently tracked PIDs.
+    pub fn currently_tracked(&self) -> HashSet<i32> {
+        self.inner.keys().cloned().collect::<HashSet<_>>()
+    }
+
+    /// Returns the PID of the process that this PID was forked from,
+    /// if it's known.
+    pub fn parent(&self, child_pid: i32) -> Option<i32> {
+        self.inner
+            .get(&child_pid)
+            .and_then(|events| events.front())
+            .and_then(|event| event.fork_parent())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::ingest::test::make_simple_events;
+
+    use super::*;
+
+    // TODO: this should be a property test at some point
+    #[test]
+    fn events_inserted_in_order() {
+        let events = make_simple_events(
+            0,
+            &[
+                ("fork", 1, 0),
+                ("exec", 1, 0),
+                ("exec_args", 1, 0),
+                ("setpgid", 1, 0),
+                ("setsid", 1, 0),
+            ],
+        );
+        let mut shuffled = events.clone();
+        shuffled.swap(0, 3);
+        shuffled.swap(2, 3);
+
+        let mut store = EventStore::new();
+        store.add_many(1, shuffled.iter());
+
+        let stored = store
+            .inner
+            .remove(&1)
+            .unwrap()
+            .into_iter()
+            .collect::<Vec<_>>();
+
+        assert_eq!(events, stored);
+    }
+
+    #[test]
+    fn reports_unfinished_pids() {
+        let events = make_simple_events(
+            0,
+            &[
+                ("fork", 1, 0),
+                ("exec", 1, 0),
+                ("fork", 2, 0),
+                ("exec", 2, 0),
+                ("fork", 3, 0),
+                ("exit", 3, 0), // PID will be finished
+            ],
+        );
+
+        let mut store = EventStore::new();
+        for event in events.iter() {
+            store.add(event.pid(), event);
+        }
+
+        let unfinished = store.unfinished_pids().collect::<Vec<_>>();
+        assert_eq!(unfinished, vec![1, 2]);
     }
 }
