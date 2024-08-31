@@ -7,17 +7,11 @@ use models::Event;
 use record::record;
 use render::render;
 use serde_json::Deserializer;
-use std::{
-    io::{stdin, BufReader},
-    path::Path,
-};
 
 #[cfg(feature = "record")]
 use std::sync::{atomic::AtomicBool, Arc};
 
-use utils::{
-    make_path_absolute, new_buffered_input_stream, new_buffered_output_stream, new_output_file,
-};
+use utils::{new_buffered_input_stream, new_buffered_output_stream};
 use writers::{EventWrite, JsonWriter};
 
 use anyhow::Context;
@@ -80,16 +74,8 @@ fn main() -> Result<(), Error> {
             }
         }
         Command::Render(args) => {
-            if &args.input_path == Path::new("-") {
-                let stdin = stdin().lock();
-                let reader = BufReader::new(stdin);
-                render(reader, args.display_mode)?;
-            } else {
-                let real_path = make_path_absolute(&args.input_path)?;
-                let file = new_output_file(real_path)?;
-                let reader = BufReader::new(file);
-                render(reader, args.display_mode)?;
-            }
+            let reader = new_buffered_input_stream(&args.input_path)?;
+            render(reader, args.display_mode)?;
         }
         Command::Ingest(args) => {
             let reader = new_buffered_input_stream(&args.input_path)?;

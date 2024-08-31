@@ -1,4 +1,7 @@
-use std::{io::Read, path::Path};
+use std::{
+    io::{Read, Write},
+    path::Path,
+};
 
 use anyhow::{anyhow, Context};
 use regex_lite::Regex;
