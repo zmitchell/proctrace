@@ -2,6 +2,10 @@ use std::{
     collections::VecDeque,
     io::{Read, Write},
 };
+use std::{
+    collections::VecDeque,
+    io::{Read, Write},
+};
 
 use anyhow::{anyhow, Context};
 use regex_lite::Regex;
@@ -13,11 +17,19 @@ use crate::{
     models::{Event, ExecArgsKind},
     writers::NoOpWriter,
 };
+use crate::{
+    cli::DisplayMode,
+    ingest::EventIngester,
+    models::{Event, ExecArgsKind},
+    writers::NoOpWriter,
+};
 
 type Error = anyhow::Error;
 
 pub fn render(reader: impl Read, writer: impl Write, mode: DisplayMode) -> Result<(), Error> {
+pub fn render(reader: impl Read, writer: impl Write, mode: DisplayMode) -> Result<(), Error> {
     let ingester = read_events(reader).context("failed to read events from input")?;
+    render_events(ingester, writer, mode)
     render_events(ingester, writer, mode)
 }
 
@@ -30,7 +42,10 @@ pub fn read_events(reader: impl Read) -> Result<EventIngester<NoOpWriter>, Error
     };
     let Event::Fork { ref child_pid, .. } = first_event else {
         return Err(anyhow!("first event was not a fork"));
+    let Event::Fork { ref child_pid, .. } = first_event else {
+        return Err(anyhow!("first event was not a fork"));
     };
+    let mut ingester: EventIngester<NoOpWriter> = EventIngester::new(Some(*child_pid), None, false);
     let mut ingester: EventIngester<NoOpWriter> = EventIngester::new(Some(*child_pid), None, false);
     ingester.observe_event(&first_event)?;
     for maybe_event in de {
@@ -330,6 +345,7 @@ fn render_single_span(
     mut writer: impl Write,
     initial_time: u128,
 ) -> Result<(), Error> {
+    eprintln!("span: {span:?}");
     let start = (span.start - initial_time) / 1_000_000;
     let duration = (span.stop - span.start) / 1_000_000;
     let line = format!(
@@ -357,6 +373,47 @@ fn clean_mermaid_label(label: impl AsRef<str>) -> String {
 //     let path = Path::new(cmd);
 //     path.file_name().unwrap().to_string_lossy().to_string()
 // }
+
+#[cfg(test)]
+mod test {
+    use crate::ingest::test::make_simple_events;
+
+    use super::*;
+
+    #[test]
+    fn extracts_fork_span() {
+        let events = make_simple_events(0, &[("fork", 1, 0), ("exit", 1, 0)]);
+        let item = extract_fork_span(&events).unwrap();
+        assert!(matches!(item, MermaidItem::Single(_)));
+    }
+
+    #[test]
+    fn extracts_single_exec_span() {
+        let events = make_simple_events(0, &[("fork", 1, 0), ("exec", 1, 0), ("exit", 1, 0)]);
+        let item = extract_single_exec_span(&events, 1).unwrap();
+        assert!(matches!(item, MermaidItem::Single(_)));
+    }
+
+    #[test]
+    fn extracts_multiple_exec_spans() {
+        let events = make_simple_events(
+            0,
+            &[
+                ("fork", 1, 0),
+                ("exec", 1, 0),
+                ("exec", 1, 0),
+                ("exec", 1, 0),
+                ("exit", 1, 0),
+            ],
+        );
+        let item = extract_multiple_exec_spans(&events, &[1, 2, 3]).unwrap();
+        assert!(matches!(item, MermaidItem::ExecGroup(_)));
+        let MermaidItem::ExecGroup(spans) = item else {
+            panic!()
+        };
+        assert_eq!(spans.len(), 3);
+    }
+}
 
 #[cfg(test)]
 mod test {
