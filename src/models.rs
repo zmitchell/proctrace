@@ -200,6 +200,38 @@ impl EventStore {
             .and_then(|events| events.front())
             .and_then(|event| event.fork_parent())
     }
+
+    /// Returns an iterator over stored events in order.
+    pub fn events_ordered(self) -> impl Iterator<Item = Event> {
+        let mut all_events = self
+            .inner
+            .into_values()
+            .flat_map(|buffer| buffer.into_iter())
+            .collect::<Vec<_>>();
+        all_events.sort();
+        all_events.into_iter()
+    }
+
+    /// Returns an iterator over the PID and buffer for each tracked PID
+    /// in order of the timestamp of the earliest event for each PID.
+    pub fn pid_buffers_ordered(mut self) -> impl Iterator<Item = (i32, VecDeque<Event>)> {
+        let mut pid_to_ts = self
+            .inner
+            .iter()
+            .filter_map(|(&pid, buffer)| {
+                // It shouldn't be possible for a buffer to be here and be empty,
+                // so if we find an empty buffer we just drop it for now.
+                // TODO: write some kind of log about the bad PID
+                buffer.front().map(|event| (pid, event.timestamp()))
+            })
+            .collect::<Vec<_>>();
+        pid_to_ts.sort_by_key(|(_, ts)| *ts);
+        let mut pids_and_buffers = vec![];
+        for (pid, _) in pid_to_ts.into_iter() {
+            pids_and_buffers.push((pid, self.inner.remove(&pid).unwrap()));
+        }
+        pids_and_buffers.into_iter()
+    }
 }
 
 #[cfg(test)]
@@ -259,5 +291,56 @@ mod test {
 
         let unfinished = store.unfinished_pids().collect::<Vec<_>>();
         assert_eq!(unfinished, vec![1, 2]);
+    }
+
+    #[test]
+    fn returns_ordered_events() {
+        let events = make_simple_events(
+            0,
+            &[
+                ("fork", 1, 0),
+                ("exec", 1, 0),
+                ("exec_args", 1, 0),
+                ("setpgid", 1, 0),
+                ("setsid", 1, 0),
+            ],
+        );
+        let mut shuffled = events.clone();
+        shuffled.swap(0, 3);
+        shuffled.swap(2, 3);
+
+        let mut store = EventStore::new();
+        store.add_many(1, shuffled.iter());
+
+        let stored = store.events_ordered().collect::<Vec<_>>();
+
+        assert_eq!(events, stored);
+    }
+
+    #[test]
+    fn returns_ordered_buffers() {
+        let events = make_simple_events(
+            0,
+            &[
+                // These are all forks because that's what triggers storing
+                // events for a PID. These are all created from one another
+                // so they won't get buffered by mistake.
+                ("fork", 1, 0),
+                ("fork", 2, 1),
+                ("fork", 3, 2),
+                ("fork", 4, 3),
+            ],
+        );
+
+        let mut store = EventStore::new();
+        for event in events.iter() {
+            store.add(event.pid(), event);
+        }
+
+        let ordered_pids = store
+            .pid_buffers_ordered()
+            .map(|(pid, _)| pid)
+            .collect::<Vec<_>>();
+        assert_eq!(ordered_pids, vec![1, 2, 3, 4]);
     }
 }
