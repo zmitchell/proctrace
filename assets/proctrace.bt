@@ -29,7 +29,7 @@ tracepoint:syscalls:sys_exit_clone
       $ts = @clones[tid];
 	  @clones[tid] = 0;
 	  $child_pid = args.ret;
-	  printf("FORK: ts=%u,parent_pid=%d,child_pid=%d,parent_pgid=%d,\n", $ts, $task->tgid, $child_pid, $task->real_parent->tgid);
+	  printf("FORK: ts=%u,parent_pid=%d,child_pid=%d,parent_pgid=%d\n", $ts, $task->tgid, $child_pid, $task->real_parent->tgid);
 	}
   }
 }
@@ -61,7 +61,7 @@ tracepoint:syscalls:sys_exit_clone3
       $ts = @clones[tid];
 	  @clones[tid] = 0;
 	  $child_pid = args.ret;
-	  printf("FORK: ts=%u,parent_pid=%d,child_pid=%d,parent_pgid=%d,\n", $ts, $task->tgid, $child_pid, $task->real_parent->tgid);
+	  printf("FORK: ts=%u,parent_pid=%d,child_pid=%d,parent_pgid=%d\n", $ts, $task->tgid, $child_pid, $task->real_parent->tgid);
     }
   }
 }
@@ -97,19 +97,19 @@ tracepoint:sched:sched_process_exit
 // Tracing process groups and sessions
 ///////////////////////////////////////////////////////////////////////////////
 
-uretprobe:libc:setsid
+tracepoint:syscalls:sys_exit_setsid
 {
   $task = (struct task_struct *)curtask;
-  $session = retval;
+  $session = args.ret;
   $ts = elapsed;
-  printf("SETSID: ts=%u,pid=%d,ppid=%d,pgid=%d,sid=%d\n", $ts, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid,$session);
+  printf("SETSID: ts=%u,pid=%d,ppid=%d,pgid=%d,sid=%d\n", $ts, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid, $session);
 }
 
-uretprobe:libc:setpgid
+tracepoint:syscalls:sys_exit_setpgid
 {
   $task = (struct task_struct *)curtask;
   $ts = elapsed;
-  printf("SETPGID: ts=%u,pid=%d,ppid=%d,pgid=%d\n", $ts, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
+  printf("SETPGID: ts=%u,pid=%d,ppid=%d,pgid=%d\n", $ts, $task->tgid, $task->real_parent->tgid, args.ret);
 }
 
 END {

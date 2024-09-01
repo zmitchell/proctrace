@@ -8,6 +8,7 @@ type Error = anyhow::Error;
 
 pub trait EventWrite {
     fn write_event(&mut self, event: &Event) -> Result<(), Error>;
+    fn write_raw(&mut self, line: impl AsRef<[u8]>) -> Result<(), Error>;
 }
 
 #[derive(Debug)]
@@ -27,6 +28,14 @@ impl<T: Write> EventWrite for JsonWriter<T> {
         let _ = self.inner.write(b"\n")?;
         Ok(())
     }
+
+    fn write_raw(&mut self, line: impl AsRef<[u8]>) -> Result<(), Error> {
+        if let Err(err) = self.inner.write_all(line.as_ref()) {
+            eprintln!("failed to write raw event: {err}");
+        }
+        let _ = self.inner.write(b"\n");
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
@@ -34,6 +43,10 @@ pub(crate) struct NoOpWriter;
 
 impl EventWrite for NoOpWriter {
     fn write_event(&mut self, _event: &Event) -> Result<(), Error> {
+        Ok(())
+    }
+
+    fn write_raw(&mut self, _line: impl AsRef<[u8]>) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -45,17 +58,26 @@ pub mod test {
     #[derive(Debug)]
     pub(crate) struct MockWriter {
         pub(crate) events: Vec<Event>,
+        pub(crate) raw: Vec<u8>,
     }
 
     impl MockWriter {
         pub fn new() -> Self {
-            Self { events: vec![] }
+            Self {
+                events: vec![],
+                raw: vec![],
+            }
         }
     }
 
     impl EventWrite for MockWriter {
         fn write_event(&mut self, event: &Event) -> Result<(), Error> {
             self.events.push(event.clone());
+            Ok(())
+        }
+
+        fn write_raw(&mut self, line: impl AsRef<[u8]>) -> Result<(), Error> {
+            self.raw.write_all(line.as_ref())?;
             Ok(())
         }
     }

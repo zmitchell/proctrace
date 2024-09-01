@@ -3,12 +3,12 @@ use clap::Parser;
 use cli::Command;
 use ingest::ingest_raw;
 use models::Event;
-#[cfg(feature = "record")]
+#[cfg(target_os = "linux")]
 use record::record;
 use render::render;
 use serde_json::Deserializer;
 
-#[cfg(feature = "record")]
+#[cfg(target_os = "linux")]
 use std::sync::{atomic::AtomicBool, Arc};
 
 use utils::{new_buffered_input_stream, new_buffered_output_stream};
@@ -18,7 +18,7 @@ use anyhow::Context;
 
 type Error = anyhow::Error;
 
-#[cfg(feature = "record")]
+#[cfg(target_os = "linux")]
 const SCRIPT: &'static str = include_str!("../assets/proctrace.bt");
 
 mod cli;
@@ -33,7 +33,7 @@ fn main() -> Result<(), Error> {
     let args = Cli::parse();
 
     match args.command {
-        #[cfg(feature = "record")]
+        #[cfg(target_os = "linux")]
         Command::Record(args) => {
             if args.cmd.is_empty() {
                 anyhow::bail!("must provide a command to run");
@@ -45,7 +45,7 @@ fn main() -> Result<(), Error> {
             user_cmd.args(&args.cmd[1..]);
 
             let writer = new_buffered_output_stream(&args.output_path)?;
-            let (_, root_pid) = record(
+            let ingester = record(
                 user_cmd,
                 args.bpftrace_path,
                 shutdown_flag.clone(),
@@ -55,7 +55,13 @@ fn main() -> Result<(), Error> {
             )
             .context("failed while recording events")?;
             if args.raw {
-                eprintln!("Process tree root was PID {root_pid}");
+                eprintln!(
+                    "Process tree root was PID {}",
+                    ingester
+                        .root_pid()
+                        .map(|pid| format!("{pid}"))
+                        .unwrap_or("UNSET".to_string())
+                );
             }
         }
         Command::Sort(args) => {
@@ -75,7 +81,8 @@ fn main() -> Result<(), Error> {
         }
         Command::Render(args) => {
             let reader = new_buffered_input_stream(&args.input_path)?;
-            render(reader, args.display_mode)?;
+            let writer = new_buffered_output_stream(&args.output_path)?;
+            render(reader, writer, args.display_mode)?;
         }
         Command::Ingest(args) => {
             let reader = new_buffered_input_stream(&args.input_path)?;

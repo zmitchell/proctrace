@@ -1,17 +1,24 @@
-use std::{io::Read, path::Path};
+use std::{
+    collections::VecDeque,
+    io::{Read, Write},
+};
 
 use anyhow::{anyhow, Context};
 use regex_lite::Regex;
 use serde_json::Deserializer;
 
-use crate::{cli::DisplayMode, ingest::EventIngester, models::Event, writers::NoOpWriter};
+use crate::{
+    cli::DisplayMode,
+    ingest::EventIngester,
+    models::{Event, ExecArgsKind},
+    writers::NoOpWriter,
+};
 
 type Error = anyhow::Error;
 
-pub fn render(reader: impl Read, mode: DisplayMode) -> Result<(), Error> {
+pub fn render(reader: impl Read, writer: impl Write, mode: DisplayMode) -> Result<(), Error> {
     let ingester = read_events(reader).context("failed to read events from input")?;
-    render_events(ingester, mode);
-    Ok(())
+    render_events(ingester, writer, mode)
 }
 
 pub fn read_events(reader: impl Read) -> Result<EventIngester<NoOpWriter>, Error> {
@@ -21,10 +28,10 @@ pub fn read_events(reader: impl Read) -> Result<EventIngester<NoOpWriter>, Error
         Some(Err(err)) => return Err(err.into()),
         None => return Err(anyhow!("input was empty")),
     };
-    let Event::Exec { ref pid, .. } = first_event else {
-        return Err(anyhow!("first event was not an exec"));
+    let Event::Fork { ref child_pid, .. } = first_event else {
+        return Err(anyhow!("first event was not a fork"));
     };
-    let mut ingester: EventIngester<NoOpWriter> = EventIngester::new(Some(*pid), None);
+    let mut ingester: EventIngester<NoOpWriter> = EventIngester::new(Some(*child_pid), None, false);
     ingester.observe_event(&first_event)?;
     for maybe_event in de {
         match maybe_event {
@@ -39,227 +46,355 @@ pub fn read_events(reader: impl Read) -> Result<EventIngester<NoOpWriter>, Error
     Ok(ingester)
 }
 
-pub fn render_events<T>(ingester: EventIngester<T>, mode: DisplayMode) {
-    // match mode {
-    //     DisplayMode::Multiplexed => {
-    //         let mut sorted_events = proc_events.into_values().flatten().collect::<Vec<_>>();
-    //         sorted_events.sort_by_key(|e| e.timestamp());
-    //         if sorted_events.len() > 1 {
-    //             let next_ts = sorted_events[1].timestamp();
-    //             sorted_events.get_mut(0).unwrap().set_timestamp(next_ts);
-    //         }
-    //         // let mut prev_ts = 0;
-    //         for event in sorted_events.into_iter() {
-    //             // let ellapsed_us = (event.timestamp() - prev_ts) / 1_000;
-    //             // prev_ts = event.timestamp();
-    //             let maybe_json = serde_json::to_string(&event);
-    //             match maybe_json {
-    //                 Ok(json) => println!("{json}"),
-    //                 Err(err) => eprintln!("failed to parse event as JSON: {err}"),
-    //             }
-    //         }
-    //     }
-    //     DisplayMode::ByProcess => {
-    //         println!("EVENTS");
-    //         let mut sorted = proc_events.into_values().collect::<Vec<_>>();
-    //         sorted.sort_by_key(|events| events.front().unwrap().timestamp());
-    //         for events in sorted.iter() {
-    //             for event in events.iter() {
-    //                 let maybe_json = serde_json::to_string(&event);
-    //                 match maybe_json {
-    //                     Ok(json) => println!("{json}"),
-    //                     Err(err) => eprintln!("failed to parse event as JSON: {err}"),
-    //                 }
-    //             }
-    //             println!();
-    //         }
-    //     }
-    //     DisplayMode::Mermaid => {
-    //         print_mermaid_output(user_cmd_pid, proc_events);
-    //     }
-    // }
+/// Render ingested events.
+pub fn render_events<T>(
+    mut ingester: EventIngester<T>,
+    writer: impl Write,
+    mode: DisplayMode,
+) -> Result<(), Error> {
+    ingester.prepare_for_rendering();
+    match mode {
+        DisplayMode::Sequential => render_sequential(ingester, writer),
+        DisplayMode::ByProcess => render_by_process(ingester, writer),
+        DisplayMode::Mermaid => render_mermaid(ingester, writer),
+    }
 }
 
-// fn print_mermaid_output(root_pid: i32, mut events: ProcEvents) {
-//     // We inject a timestamp of 0 for the first event (the user's command starting)
-//     // and that will fuck up the Gantt chart, so we need to patch it. I've arbitrarily
-//     // chosen the timestamp of the second event.
-//     let mut sorted = events
-//         .clone()
-//         .into_values()
-//         .flat_map(|proc_events| proc_events.into_iter())
-//         .collect::<Vec<Event>>();
-//     sorted.sort_by_key(Event::timestamp);
-//     let second_ts = sorted[1].timestamp();
-//     events
-//         .get_mut(&root_pid)
-//         .unwrap()
-//         .front_mut()
-//         .unwrap()
-//         .set_timestamp(second_ts);
+fn render_sequential<T>(ingester: EventIngester<T>, mut writer: impl Write) -> Result<(), Error> {
+    for event in ingester.into_tracked_events().events_ordered() {
+        serde_json::to_writer(&mut writer, &event).context("failed to write event")?;
+        writer.write(b"\n").context("write failed")?;
+    }
+    Ok(())
+}
 
-//     // There's a bug that catches a bunch of Fork events with no exit right
-//     // now. I have no idea what those forks are or why they don't show up
-//     // with an exit.
-//     events.retain(|_k, v| !matches!(v.back().unwrap(), Event::Fork { .. }));
-//     let mut buf = String::new();
-//     buf.push_str("gantt\n");
-//     buf.push_str("    title Process Trace\n");
-//     buf.push_str("    dateFormat x\n"); // pretend like our timestamps are seconds
-//     buf.push_str("    axisFormat %S.%L\n"); // put "seconds" on the x-axis
-//     buf.push_str("    todayMarker off\n\n"); // time has no meaning
-//     recurse_children(root_pid, events, &mut buf, second_ts);
-//     println!("{}", buf);
-// }
+fn render_by_process<T>(ingester: EventIngester<T>, mut writer: impl Write) -> Result<(), Error> {
+    for (pid, buffer) in ingester.into_tracked_events().pid_buffers_ordered() {
+        let header = extract_displayable_buffer_header(pid, &buffer)
+            .context("failed to extract header for PID {pid}")?;
+        writer
+            .write_all(header.as_bytes())
+            .context("write failed")?;
+        writer.write(b"\n").context("write failed")?;
+        for event in buffer.iter() {
+            serde_json::to_writer(&mut writer, event).context("failed to write event")?;
+            writer.write(b"\n").context("write failed")?;
+        }
+        writer.write(b"\n").context("write failed")?;
+    }
+    Ok(())
+}
 
-// fn recurse_children(parent: i32, mut events: ProcEvents, buf: &mut String, initial_time: u128) {
-//     print_spans_for_process(
-//         events.get_mut(&parent).unwrap().make_contiguous(),
-//         buf,
-//         initial_time,
-//     );
-//     if let Some(child) = next_child_pid(parent, &events) {
-//         recurse_children(child, events, buf, initial_time);
-//     } else {
-//         events.remove(&parent);
-//     }
-// }
+/// Try to exact some kind of displayable title for the events contained in the buffer.
+fn extract_displayable_buffer_header(pid: i32, events: &VecDeque<Event>) -> Result<String, Error> {
+    let n_events = events.len();
+    if n_events == 0 {
+        Err(anyhow!("buffer had no events"))
+    } else if n_events == 1 {
+        if let Event::Fork {
+            parent_pid,
+            child_pid,
+            ..
+        } = events[0]
+        {
+            // A single fork event, display the fork info
+            Ok(format!("PID {child_pid}, forked from {parent_pid}"))
+        } else if let Event::Exec { ref cmdline, .. } = events[0] {
+            // A single exec event, display the exec args
+            Ok(format!(
+                "PID {pid}: {}",
+                cmdline
+                    .as_ref()
+                    .map(|args| args.to_string())
+                    .unwrap_or("<command unavailable>".to_string())
+            ))
+        } else {
+            unreachable!("all event buffers should begin with either fork or exec");
+        }
+    } else if matches!(events[0], Event::Fork { .. }) && matches!(events[1], Event::Exec { .. }) {
+        // A fork and an initial exec, display the exec args
+        let Event::Exec { ref cmdline, .. } = events[1] else {
+            unreachable!("just checked that this was an exec");
+        };
+        Ok(format!(
+            "PID {pid}: {}",
+            cmdline
+                .as_ref()
+                .map(|args| args.to_string())
+                .unwrap_or("<command unavailable>".to_string())
+        ))
+    } else if matches!(events[0], Event::Fork { .. }) {
+        // A fork followed by something other than exec, display the fork info
+        let Event::Fork {
+            parent_pid,
+            child_pid,
+            ..
+        } = events[0]
+        else {
+            unreachable!("just checked that this was a fork");
+        };
+        Ok(format!("PID {child_pid}, forked from {parent_pid}"))
+    } else {
+        // No idea what happened here
+        Ok(format!("PID {pid}"))
+    }
+}
 
-// fn next_child_pid(parent: i32, events: &ProcEvents) -> Option<i32> {
-//     let mut pid_starts = events
-//         .iter()
-//         .filter(|(pid, _)| **pid != parent)
-//         .filter_map(|(pid, proc_events)| {
-//             proc_events.front().and_then(|e| {
-//                 if let Event::Fork {
-//                     timestamp,
-//                     parent_pid,
-//                     ..
-//                 } = e
-//                 {
-//                     if *parent_pid == parent {
-//                         Some((*pid, timestamp))
-//                     } else {
-//                         None
-//                     }
-//                 } else {
-//                     None
-//                 }
-//             })
-//         })
-//         .collect::<Vec<_>>();
-//     pid_starts.sort_by_key(|(_, ts)| **ts);
-//     pid_starts.first().map(|(pid, _)| *pid)
-// }
+fn render_mermaid<T>(ingester: EventIngester<T>, mut writer: impl Write) -> Result<(), Error> {
+    // Get anything out of the ingester or event store ahead of time because we're about
+    // to consume it
+    let root_pid = ingester
+        .root_pid()
+        .ok_or(anyhow!("tried to render without a root PID"))?;
+    let initial_time = ingester
+        .tracked_events()
+        .pid_start_time(root_pid)
+        .ok_or(anyhow!("no events tracked for root PID"))?;
 
-// fn print_spans_for_process(proc_events: &[Event], buf: &mut String, initial_time: u128) {
-//     let default_length_limit = 200;
-//     let num_execs = num_execs(proc_events);
-//     if num_execs > 1 {
-//         let first_exec = proc_events.iter().position(|e| e.is_exec()).unwrap();
-//         buf.push_str(
-//             format!(
-//                 "    section {} execs\n",
-//                 exec_command(proc_events.get(first_exec).unwrap(), 10)
-//             )
-//             .as_str(),
-//         );
-//         if first_exec != 0 {
-//             // Must have started with a `fork`
-//             let start = proc_events.first().unwrap();
-//             let stop = proc_events.get(first_exec).unwrap();
-//             single_exec_span(
-//                 start,
-//                 stop,
-//                 1_000_000,
-//                 initial_time,
-//                 buf,
-//                 default_length_limit,
-//                 None,
-//             );
-//         }
-//         for i in 0..num_execs {
-//             let idx = i + first_exec;
-//             let start = proc_events.get(idx).unwrap();
-//             let stop = proc_events.get(idx + 1).unwrap();
-//             single_exec_span(
-//                 start,
-//                 stop,
-//                 1_000_000,
-//                 initial_time,
-//                 buf,
-//                 default_length_limit,
-//                 None,
-//             );
-//         }
-//         buf.push_str("    section other\n");
-//     } else {
-//         let start = proc_events.first().unwrap();
-//         let label = if proc_events.get(1).unwrap().is_exec() {
-//             exec_command(proc_events.get(1).unwrap(), default_length_limit)
-//         } else {
-//             "fork".to_string()
-//         };
-//         let stop = proc_events.last().unwrap();
-//         single_exec_span(
-//             start,
-//             stop,
-//             1_000_000,
-//             initial_time,
-//             buf,
-//             default_length_limit,
-//             Some(label),
-//         );
-//     }
-// }
+    writer
+        .write_all("gantt\n".as_bytes())
+        .context("write failed")?;
+    writer
+        .write_all("    title Process Trace\n".as_bytes())
+        .context("write failed")?;
+    writer
+        .write_all("    dateFormat x\n".as_bytes())
+        .context("write failed")?; // pretend like our timestamps are seconds
+    writer
+        .write_all("    axisFormat %S.%L\n".as_bytes())
+        .context("write failed")?; // put "seconds" on the x-axis
+    writer
+        .write_all("    todayMarker off\n\n".as_bytes())
+        .context("write failed")?; // time has no meaning
 
-// fn single_exec_span(
-//     start: &Event,
-//     stop: &Event,
-//     scale: u128,
-//     initial_time: u128,
-//     buf: &mut String,
-//     length_limit: usize,
-//     label_override: Option<String>,
-// ) {
-//     let duration = (stop.timestamp() - start.timestamp()) / scale;
-//     let duration = duration.max(1);
-//     let shifted_start = (start.timestamp() - initial_time) / scale;
-//     let label = if let Some(label) = label_override {
-//         label
-//     } else if start.is_fork() {
-//         "fork".to_string()
-//     } else {
-//         exec_command(start, length_limit)
-//     };
-//     buf.push_str(format!("    {} :active, {}, {}ms\n", label, shifted_start, duration).as_str());
-// }
+    for (pid, mut buffer) in ingester
+        .into_tracked_events()
+        .buffers_depth_first_fork_order(root_pid)?
+    {
+        let item = parse_buffer(buffer.make_contiguous())
+            .with_context(|| format!("failed to parse buffer for PID {pid}"))?;
+        render_item(&item, &mut writer, initial_time)?;
+    }
 
-// fn num_execs(events: &[Event]) -> usize {
-//     events.iter().filter(|e| e.is_exec()).count()
-// }
+    Ok(())
+}
 
-// fn exec_command(event: &Event, limit: usize) -> String {
-//     let regex = Regex::new(r"\/nix\/store\/.*\/bin\/").unwrap();
-//     let Event::Exec { ref cmdline, .. } = event else {
-//         unreachable!("we reached it");
-//     };
-//     cmdline
-//         .clone()
-//         .map(|cmds| {
-//             let joined = cmds.join(" ");
-//             let denixified = regex.replace_all(&joined, "<store>/");
-//             if denixified.len() > limit {
-//                 printable_cmd(&cmds[0])
-//             } else {
-//                 denixified.to_string()
-//             }
-//         })
-//         .unwrap_or("proc".to_string())
-// }
+#[derive(Debug)]
+enum MermaidItem {
+    Single(Span),
+    ExecGroup(Vec<Span>),
+}
+
+#[derive(Debug)]
+struct Span {
+    pub pid: i32,
+    pub label: String,
+    pub start: u128,
+    pub stop: u128,
+}
+
+fn parse_buffer(events: &[Event]) -> Result<MermaidItem, Error> {
+    if events.is_empty() {
+        return Err(anyhow!("tried to parse empty buffer"));
+    }
+    let exec_indices = events
+        .iter()
+        .enumerate()
+        .filter_map(|(i, event)| if event.is_exec() { Some(i) } else { None })
+        .collect::<Vec<_>>();
+    if exec_indices.is_empty() {
+        extract_fork_span(events)
+    } else if exec_indices.len() == 1 {
+        extract_single_exec_span(events, exec_indices[0])
+    } else {
+        extract_multiple_exec_spans(events, &exec_indices)
+    }
+}
+
+/// Extracts a [RenderItem] from a buffer that doesn't contain any `exec` events.
+fn extract_fork_span(events: &[Event]) -> Result<MermaidItem, Error> {
+    let start = events
+        .first()
+        .ok_or(anyhow!("buffer was empty after checking"))?
+        .timestamp();
+    let pid = events.first().unwrap().pid();
+    let stop = events
+        .last()
+        .ok_or(anyhow!("buffer was empty after checking"))?
+        .timestamp();
+    let label = format!("[{pid}] <fork>");
+    let span = Span {
+        pid,
+        start,
+        stop,
+        label,
+    };
+    Ok(MermaidItem::Single(span))
+}
+
+/// Extracts a [RenderItem] from a buffer that contains a single `exec` event.
+fn extract_single_exec_span(events: &[Event], exec_index: usize) -> Result<MermaidItem, Error> {
+    let start = events
+        .first()
+        .ok_or(anyhow!("buffer was empty after checking"))?
+        .timestamp();
+    let pid = events.first().unwrap().pid();
+    let stop = events
+        .last()
+        .ok_or(anyhow!("buffer was empty after checking"))?
+        .timestamp();
+    let cmdline = events
+        .get(exec_index)
+        .and_then(|event| match event {
+            Event::Exec { cmdline, .. } => Some(cmdline),
+            _ => None,
+        })
+        .ok_or(anyhow!("failed to find exec for span"))?;
+    let label = match cmdline {
+        Some(args) => match args {
+            ExecArgsKind::Joined(args) => format!("[{pid}] {args}"),
+            ExecArgsKind::Args(args) => {
+                format!("[{pid}] {}", args.join(" "))
+            }
+        },
+        None => "<command unavailable>".to_string(),
+    };
+    let span = Span {
+        pid,
+        start,
+        stop,
+        label,
+    };
+    Ok(MermaidItem::Single(span))
+}
+
+/// Extracts a [RenderItem] from a buffer that contains multiple `exec` events
+fn extract_multiple_exec_spans(
+    events: &[Event],
+    exec_indices: &[usize],
+) -> Result<MermaidItem, Error> {
+    let mut spans = vec![];
+    let mut ranges = vec![];
+    let n_execs = exec_indices.len();
+    debug_assert!(n_execs > 1, "should only be called with > 1 execs");
+    ranges.push(0..exec_indices[1]);
+    for (i, idx) in exec_indices.iter().enumerate() {
+        if i == 0 {
+            continue;
+        } else if i == (n_execs - 1) {
+            ranges.push(*idx..events.len());
+        } else {
+            ranges.push(*idx..(exec_indices[i + 1] + 1));
+        }
+    }
+    for (i, range) in ranges.into_iter().enumerate() {
+        // The exec indices we have are relative to the entire buffer,
+        // we need to offset it so that it's relative to this slice.
+        let slice_index = exec_indices[i] - range.start;
+        let MermaidItem::Single(span) = extract_single_exec_span(&events[range], slice_index)?
+        else {
+            unreachable!("single exec span returned more than one span");
+        };
+        spans.push(span);
+    }
+    Ok(MermaidItem::ExecGroup(spans))
+}
+
+fn render_item(
+    item: &MermaidItem,
+    mut writer: impl Write,
+    initial_time: u128,
+) -> Result<(), Error> {
+    match item {
+        MermaidItem::Single(span) => {
+            render_single_span(span, &mut writer, initial_time).context("failed rendering span")?;
+        }
+        MermaidItem::ExecGroup(spans) => {
+            writer
+                .write_all(format!("    section {} execs\n", spans[0].pid).as_bytes())
+                .context("failed writing exec group header")?;
+            for span in spans.iter() {
+                render_single_span(span, &mut writer, initial_time)
+                    .context("failed rendering span")?;
+            }
+            writer
+                .write_all("    section other\n".as_bytes())
+                .context("write failed")?;
+        }
+    }
+    Ok(())
+}
+
+fn render_single_span(
+    span: &Span,
+    mut writer: impl Write,
+    initial_time: u128,
+) -> Result<(), Error> {
+    let start = (span.start - initial_time) / 1_000_000;
+    let duration = (span.stop - span.start) / 1_000_000;
+    let line = format!(
+        "    {} :active, {}, {}ms\n",
+        clean_mermaid_label(&span.label),
+        start,
+        duration.max(1)
+    );
+    writer.write_all(line.as_bytes()).context("write failed")?;
+    Ok(())
+}
+
+fn clean_mermaid_label(label: impl AsRef<str>) -> String {
+    if std::env::var("PROCTRACE_LONG_NIX_PATHS").is_ok_and(|val| val == "1") {
+        label.as_ref().to_string()
+    } else {
+        let nix_regex = Regex::new(r"\/nix\/store\/.*\/bin\/").unwrap();
+        let denixified = nix_regex.replace_all(label.as_ref(), "<store>/");
+        denixified.to_string()
+    }
+}
 
 // // Store paths and long argument lists don't work so well
 // fn printable_cmd(cmd: &str) -> String {
 //     let path = Path::new(cmd);
 //     path.file_name().unwrap().to_string_lossy().to_string()
 // }
+
+#[cfg(test)]
+mod test {
+    use crate::ingest::test::make_simple_events;
+
+    use super::*;
+
+    #[test]
+    fn extracts_fork_span() {
+        let events = make_simple_events(0, &[("fork", 1, 0), ("exit", 1, 0)]);
+        let item = extract_fork_span(&events).unwrap();
+        assert!(matches!(item, MermaidItem::Single(_)));
+    }
+
+    #[test]
+    fn extracts_single_exec_span() {
+        let events = make_simple_events(0, &[("fork", 1, 0), ("exec", 1, 0), ("exit", 1, 0)]);
+        let item = extract_single_exec_span(&events, 1).unwrap();
+        assert!(matches!(item, MermaidItem::Single(_)));
+    }
+
+    #[test]
+    fn extracts_multiple_exec_spans() {
+        let events = make_simple_events(
+            0,
+            &[
+                ("fork", 1, 0),
+                ("exec", 1, 0),
+                ("exec", 1, 0),
+                ("exec", 1, 0),
+                ("exit", 1, 0),
+            ],
+        );
+        let item = extract_multiple_exec_spans(&events, &[1, 2, 3]).unwrap();
+        assert!(matches!(item, MermaidItem::ExecGroup(_)));
+        let MermaidItem::ExecGroup(spans) = item else {
+            panic!()
+        };
+        assert_eq!(spans.len(), 3);
+    }
+}

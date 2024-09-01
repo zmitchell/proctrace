@@ -1,10 +1,10 @@
 use std::{
-    collections::{BTreeMap, HashSet, VecDeque},
+    collections::HashSet,
     io::{BufRead, BufReader, Read},
 };
 
 use crate::{
-    models::{Event, EventStore},
+    models::{Event, EventStore, ExecArgsKind},
     writers::EventWrite,
 };
 use anyhow::{anyhow, Context};
@@ -127,7 +127,7 @@ impl EventParser {
             let event = Event::ExecArgs {
                 timestamp: ts.parse().context("failed to parse exec timestamp")?,
                 pid: pid.parse().context("failed to parse exec pid")?,
-                args: args.parse().context("failed to parse exec args")?,
+                args: ExecArgsKind::Joined(args.parse().context("failed to parse exec args")?),
             };
             Ok(event)
         } else if let Some(caps) = self.exit.captures(line) {
@@ -215,30 +215,42 @@ impl EventParser {
 
 #[derive(Debug)]
 pub struct EventIngester<T> {
+    /// The PID that will be the root of the process tree.
     root_pid: Option<i32>,
+    /// Event store for events that are part of the process tree.
     events: EventStore,
+    /// Events that we are unsure about being part of the process tree.
     buffered: EventStore,
+    /// The writer for events and raw output.
     pub(crate) writer: Option<T>,
+    /// Whether the writer should write processed events or only raw output
+    /// on demand.
+    raw: bool,
 }
 
-impl<T: EventWrite> EventIngester<T> {
-    /// Create a new ingester.
-    ///
-    /// If initialized without a `root_pid` it will buffer events until one is set.
-    /// If initialized with a writer, events will be written to it as they are identified
-    /// to be part of the process tree rooted at `root_pid`.
-    pub fn new(root_pid: Option<i32>, writer: Option<T>) -> Self {
-        Self {
-            root_pid,
-            events: EventStore::new(),
-            buffered: EventStore::new(),
-            writer,
-        }
+impl<T> EventIngester<T> {
+    /// Returns a reference to the store of tracked events.
+    pub fn tracked_events(&self) -> &EventStore {
+        &self.events
     }
 
-    /// Returns a copy of the stored events.
-    pub fn into_events(self) -> EventStore {
+    /// Consumes the ingester and returns the store of tracked events.
+    pub fn into_tracked_events(self) -> EventStore {
         self.events
+    }
+
+    /// Set the root PID after the ingester has been created.
+    ///
+    /// Returns an error if the root PID has already been set.
+    #[allow(dead_code)]
+    pub fn set_root_pid(&mut self, pid: i32) -> Result<(), Error> {
+        let existing = self.root_pid.take();
+        if existing.is_some() {
+            Err(anyhow!("tried to set root PID when one existed"))
+        } else {
+            self.root_pid = Some(pid);
+            Ok(())
+        }
     }
 
     /// Returns the configured `root_pid` if one has been set.
@@ -275,20 +287,38 @@ impl<T: EventWrite> EventIngester<T> {
         self.events.add(event.pid(), event);
     }
 
-    /// Returns true if this ingester is tracking the provided PID.
-    fn pid_is_tracked(&self, pid: i32) -> bool {
-        self.events.pid_is_tracked(pid)
+    pub fn is_empty(&self) -> bool {
+        self.events.is_empty()
     }
 
-    fn register_initial_fork(&mut self, event: &Event) -> Result<(), Error> {
-        if let Some(root_pid) = self.root_pid {
-            self.events.add(root_pid, event);
-            Ok(())
-        } else {
-            Err(anyhow!(
-                "tried to register initial fork without a root PID set"
-            ))
+    pub fn prepare_for_rendering(&mut self) {
+        self.events.collapse_execs();
+    }
+}
+
+impl<T: EventWrite> EventIngester<T> {
+    /// Create a new ingester.
+    ///
+    /// If initialized without a `root_pid` it will buffer events until one is set.
+    /// If initialized with a writer, events will be written to it as they are identified
+    /// to be part of the process tree rooted at `root_pid`.
+    pub fn new(root_pid: Option<i32>, writer: Option<T>, raw: bool) -> Self {
+        Self {
+            root_pid,
+            events: EventStore::new(),
+            buffered: EventStore::new(),
+            writer,
+            raw,
         }
+    }
+
+    /// Write a line of raw output from the script.
+    #[allow(dead_code)]
+    pub fn write_raw(&mut self, line: &str) -> Result<(), Error> {
+        if let Some(ref mut writer) = self.writer {
+            writer.write_raw(line)?;
+        }
+        Ok(())
     }
 
     /// Walk the buffer collecting any new PIDs to track and writing out any buffered
@@ -368,7 +398,9 @@ impl<T: EventWrite> EventIngester<T> {
         }
         // Write out the previously buffered events
         for (_pid, events) in drained_events.drain(..) {
-            self.maybe_write_events(events.iter())?;
+            if !self.raw {
+                self.maybe_write_events(events.iter())?;
+            }
         }
 
         Ok(())
@@ -398,11 +430,15 @@ impl<T: EventWrite> EventIngester<T> {
         if self.events.pid_is_tracked(event.pid()) {
             // We're already tracking this PID, so just store the latest event
             self.store_event(event);
-            self.maybe_write_event(event)?;
+            if !self.raw {
+                self.maybe_write_event(event)?;
+            }
         } else if self.is_initial_fork(event).unwrap_or(false) {
             // We aren't tracking any PIDs yet, and this will be the first
             self.store_event(event);
-            self.maybe_write_event(event)?;
+            if !self.raw {
+                self.maybe_write_event(event)?;
+            }
         } else {
             // We can't tell if we need this event yet, so buffer it and maybe
             // it will get drained later.
@@ -411,14 +447,6 @@ impl<T: EventWrite> EventIngester<T> {
         }
         self.drain_buffer()?;
         Ok(())
-    }
-
-    pub fn unfinished_pids(&self) -> Vec<i32> {
-        self.events.unfinished_pids().collect::<Vec<_>>()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.events.is_empty()
     }
 }
 
@@ -430,7 +458,7 @@ pub fn ingest_raw<W: EventWrite>(
 ) -> Result<EventIngester<W>, Error> {
     let reader = BufReader::new(input);
     let event_parser = EventParser::new();
-    let mut ingester = EventIngester::new(Some(root_pid), Some(writer));
+    let mut ingester = EventIngester::new(Some(root_pid), Some(writer), false);
 
     for line in reader.lines() {
         if line.is_err() {
@@ -451,7 +479,10 @@ pub fn ingest_raw<W: EventWrite>(
             }
         }
 
-        let unfinished = ingester.unfinished_pids();
+        let unfinished = ingester
+            .tracked_events()
+            .unfinished_pids()
+            .collect::<Vec<_>>();
 
         // Print the outstanding processes in debug mode
         if debug {
@@ -522,7 +553,7 @@ pub(crate) mod test {
                     let event = Event::ExecArgs {
                         timestamp,
                         pid: *pid,
-                        args: "".to_string(),
+                        args: ExecArgsKind::Joined("".to_string()),
                     };
                     timestamp += 1;
                     events.push(event);
@@ -567,7 +598,7 @@ pub(crate) mod test {
     /// Returns a new [EventIngester] for use in tests
     fn mock_ingester(root_pid: Option<i32>) -> EventIngester<MockWriter> {
         let writer = MockWriter::new();
-        EventIngester::new(root_pid, Some(writer))
+        EventIngester::new(root_pid, Some(writer), false)
     }
 
     #[test]
@@ -609,7 +640,7 @@ pub(crate) mod test {
         let expected = Event::ExecArgs {
             timestamp: 0,
             pid: 1,
-            args: "foo".to_string(),
+            args: ExecArgsKind::Joined("foo".to_string()),
         };
         assert_eq!(parsed, expected);
     }

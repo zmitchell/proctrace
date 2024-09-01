@@ -13,7 +13,7 @@ pub struct Cli {
 #[derive(Debug, Default, ValueEnum, Clone, PartialEq, Eq)]
 pub enum DisplayMode {
     #[default]
-    Multiplexed,
+    Sequential,
     ByProcess,
     Mermaid,
 }
@@ -21,7 +21,7 @@ pub enum DisplayMode {
 impl std::fmt::Display for DisplayMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DisplayMode::Multiplexed => write!(f, "multiplexed"),
+            DisplayMode::Sequential => write!(f, "sequential"),
             DisplayMode::ByProcess => write!(f, "by-process"),
             DisplayMode::Mermaid => write!(f, "mermaid"),
         }
@@ -38,7 +38,7 @@ pub enum Command {
     /// may not be in the PATH of the superuser. If this is the case then you
     /// can use the `--bpftrace-path` flag to specify it manually. This is likely
     /// the case if you've installed `bpftrace` via `flox` or `nix profile install`.
-    #[cfg(feature = "record")]
+    #[cfg(target_os = "linux")]
     Record(RecordArgs),
 
     /// Convert a raw recording into a processed recording such that it is ready for rendering.
@@ -61,7 +61,7 @@ pub enum Command {
 }
 
 #[derive(Debug, Clone, Args, PartialEq, Eq)]
-#[cfg(feature = "record")]
+#[cfg(target_os = "linux")]
 pub struct RecordArgs {
     /// The path to a `bpftrace` executable.
     ///
@@ -131,12 +131,12 @@ pub struct SortArgs {
 pub struct RenderArgs {
     /// How should the output be rendered.
     ///
-    /// For "multiplexed" events will be shown in the order that they were received.
+    /// For "sequential" events will be shown in the order that they were received.
     /// For "by-process" events are shown in order for each process,
     /// and processes are separated by a blank line. For "mermaid" the output is the
     /// syntax for a Mermaid.js Gantt chart.
     #[arg(short, long, help = "The output format")]
-    #[arg(default_value_t = DisplayMode::Multiplexed)]
+    #[arg(default_value_t = DisplayMode::Sequential)]
     pub display_mode: DisplayMode,
 
     /// The location where an event recording should be read from.
@@ -144,6 +144,15 @@ pub struct RenderArgs {
     /// Must either be a path to a file or '-' to read from stdin.
     #[arg(short, long = "input", help = "The path to the event data file")]
     pub input_path: PathBuf,
+
+    /// Where to write the rendered output.
+    #[arg(
+        short,
+        long = "output",
+        help = "Where to write the output (printed to stdout if omitted).",
+        value_name = "PATH"
+    )]
+    pub output_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Args, PartialEq, Eq)]
