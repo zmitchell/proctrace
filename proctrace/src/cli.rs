@@ -41,22 +41,13 @@ pub enum Command {
     #[cfg(target_os = "linux")]
     Record(RecordArgs),
 
-    /// Convert a raw recording into a processed recording such that it is ready for rendering.
+    /// Convert a raw recording into a processed recording that can be rendered.
     ///
     /// A recording produced in "raw" mode cannot be rendered directly, so it must first
     /// be processed into a render-ready form. This subcommand does that processing.
     Ingest(IngestArgs),
 
-    /// Sort the output from a recording.
-    ///
-    /// The events persisted in a recording may not arrive in timestamp order.
-    /// This command reads the events in a recording and sorts them by timestamp.
-    /// You don't need to do this yourself unless you want to look at the raw recording data,
-    /// the `render` command will automatically sort the events before rendering
-    /// the output.
-    Sort(SortArgs),
-
-    /// Render the recording in the specified display format.
+    /// Render a recording in the specified display format.
     Render(RenderArgs),
 }
 
@@ -79,6 +70,8 @@ pub struct RecordArgs {
     pub bpftrace_path: PathBuf,
 
     /// Show each line of output from `bpftrace` before it goes through filtering.
+    ///
+    /// This also displays which PIDs are being tracked but have not yet exited.
     #[arg(long, help = "Show debug output")]
     pub debug: bool,
 
@@ -107,24 +100,6 @@ pub struct RecordArgs {
     /// it behaves as you expect.
     #[arg(last = true, value_name = "CMD")]
     pub cmd: Vec<String>,
-}
-
-#[derive(Debug, Clone, Args, PartialEq, Eq)]
-pub struct SortArgs {
-    /// The path to the recording to be sorted.
-    ///
-    /// Must either be a path to a file or '-' to read from stdin.
-    #[arg(short, long = "input", help = "The path to the event data file")]
-    pub input_path: PathBuf,
-
-    /// Where to write the output (default: stdout).
-    #[arg(
-        short,
-        long = "output",
-        help = "Where to write the output (printed to stdout if omitted).",
-        value_name = "PATH"
-    )]
-    pub output_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Args, PartialEq, Eq)]

@@ -2,19 +2,15 @@ use crate::cli::Cli;
 use clap::Parser;
 use cli::Command;
 use ingest::ingest_raw;
-use models::Event;
 #[cfg(target_os = "linux")]
 use record::record;
 use render::render;
-use serde_json::Deserializer;
 
 #[cfg(target_os = "linux")]
 use std::sync::{atomic::AtomicBool, Arc};
 
 use utils::{new_buffered_input_stream, new_buffered_output_stream};
-use writers::{EventWrite, JsonWriter};
-
-use anyhow::Context;
+use writers::JsonWriter;
 
 type Error = anyhow::Error;
 
@@ -62,21 +58,6 @@ fn main() -> Result<(), Error> {
                         .map(|pid| format!("{pid}"))
                         .unwrap_or("UNSET".to_string())
                 );
-            }
-        }
-        Command::Sort(args) => {
-            let reader = new_buffered_input_stream(&args.input_path)?;
-            let de = Deserializer::from_reader(reader);
-            let write_stream = new_buffered_output_stream(&args.output_path)?;
-            let mut writer = JsonWriter::new(write_stream);
-            let mut events = Vec::new();
-            for maybe_event in de.into_iter::<Event>() {
-                let event = maybe_event.context("failed to deserialize event")?;
-                events.push(event);
-            }
-            events.sort_by_key(|e| e.timestamp());
-            for event in events.into_iter() {
-                writer.write_event(&event)?;
             }
         }
         Command::Render(args) => {
