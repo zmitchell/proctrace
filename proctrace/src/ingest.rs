@@ -22,6 +22,12 @@ pub struct EventParser {
     setpgid: Regex,
 }
 
+impl Default for EventParser {
+    fn default() -> Self {
+        EventParser::new()
+    }
+}
+
 impl EventParser {
     pub fn new() -> Self {
         let fork_regex = Regex::new(

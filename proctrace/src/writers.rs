@@ -39,7 +39,7 @@ impl<T: Write> EventWrite for JsonWriter<T> {
 }
 
 #[derive(Debug)]
-pub(crate) struct NoOpWriter;
+pub struct NoOpWriter;
 
 impl EventWrite for NoOpWriter {
     fn write_event(&mut self, _event: &Event) -> Result<(), Error> {

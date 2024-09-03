@@ -1,10 +1,7 @@
-use std::{
-    io::{stderr, Write},
-    path::{Path, PathBuf},
-};
+use std::io::{stderr, Write};
 
 use anyhow::Context;
-use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
+use clap::{CommandFactory, Parser, Subcommand};
 
 type Error = anyhow::Error;
 
