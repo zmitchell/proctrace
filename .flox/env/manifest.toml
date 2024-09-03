@@ -31,6 +31,8 @@ bpftrace.systems = ["aarch64-linux", "x86_64-linux"]
 cargo-nextest.pkg-path = "cargo-nextest"
 just.pkg-path = "just"
 mermaid-cli.pkg-path = "mermaid-cli"
+nodejs.pkg-path = "nodejs"
+pandoc.pkg-path = "pandoc"
 
 [vars]
 
@@ -45,3 +47,5 @@ on-activate = '''
 [options]
 systems = ["aarch64-darwin", "aarch64-linux", "x86_64-linux"]
 
+[services.docs]
+command = "cd docs; npm run dev"

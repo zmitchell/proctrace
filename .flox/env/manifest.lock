@@ -34,6 +34,12 @@
       "mermaid-cli": {
         "pkg-path": "mermaid-cli"
       },
+      "nodejs": {
+        "pkg-path": "nodejs"
+      },
+      "pandoc": {
+        "pkg-path": "pandoc"
+      },
       "rust-analyzer": {
         "pkg-path": "rust-analyzer",
         "pkg-group": "rust-analyzer"
@@ -66,7 +72,16 @@
         "licenses": []
       },
       "semver": {}
-    }
+    },
+    "services": {
+      "docs": {
+        "command": "cd docs; npm run dev",
+        "vars": null,
+        "is-daemon": null,
+        "shutdown": null
+      }
+    },
+    "build": {}
   },
   "packages": [
     {
@@ -1000,6 +1015,189 @@
       ],
       "outputs": {
         "out": "/nix/store/h6l4bxd7pgmh0n7jdrp4kbbj7wcq2i4d-mermaid-cli-10.9.0"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "nodejs",
+      "broken": false,
+      "derivation": "/nix/store/g0fka5b4n2z08k4m61bgkw11biy9g433-nodejs-20.15.1.drv",
+      "description": "Event-driven I/O framework for the V8 JavaScript engine",
+      "install_id": "nodejs",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=cb9a96f23c491c081b38eab96d22fa958043c9fa",
+      "name": "nodejs-20.15.1",
+      "pname": "nodejs",
+      "rev": "cb9a96f23c491c081b38eab96d22fa958043c9fa",
+      "rev_count": 662544,
+      "rev_date": "2024-08-04T23:25:57Z",
+      "scrape_date": "2024-08-07T02:06:32Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "20.15.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "libv8": "/nix/store/zbyfi027sdvnxgrzqgallrmyzzifzkh5-nodejs-20.15.1-libv8",
+        "out": "/nix/store/pnz462fx615nhm9lavm25gvhl6q2rjhr-nodejs-20.15.1"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "nodejs",
+      "broken": false,
+      "derivation": "/nix/store/zm9zsz4zg9f0rlkml4c6j3yznyjb3y11-nodejs-20.15.1.drv",
+      "description": "Event-driven I/O framework for the V8 JavaScript engine",
+      "install_id": "nodejs",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=cb9a96f23c491c081b38eab96d22fa958043c9fa",
+      "name": "nodejs-20.15.1",
+      "pname": "nodejs",
+      "rev": "cb9a96f23c491c081b38eab96d22fa958043c9fa",
+      "rev_count": 662544,
+      "rev_date": "2024-08-04T23:25:57Z",
+      "scrape_date": "2024-08-07T02:06:32Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "20.15.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "libv8": "/nix/store/hjmd0akk51ngf69cyam19ibwc536mnnp-nodejs-20.15.1-libv8",
+        "out": "/nix/store/igqd6ci0dbhq2lbvb9hd47fzbsb1vp55-nodejs-20.15.1"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "nodejs",
+      "broken": false,
+      "derivation": "/nix/store/bk4s3ikm26m6q6bn4sz7xfppqgpqqpil-nodejs-20.15.1.drv",
+      "description": "Event-driven I/O framework for the V8 JavaScript engine",
+      "install_id": "nodejs",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=cb9a96f23c491c081b38eab96d22fa958043c9fa",
+      "name": "nodejs-20.15.1",
+      "pname": "nodejs",
+      "rev": "cb9a96f23c491c081b38eab96d22fa958043c9fa",
+      "rev_count": 662544,
+      "rev_date": "2024-08-04T23:25:57Z",
+      "scrape_date": "2024-08-07T02:06:32Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "20.15.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "libv8": "/nix/store/amm162s6dwgsf0mj8j7i1h5f8n9ph2k0-nodejs-20.15.1-libv8",
+        "out": "/nix/store/zxa7qi0264hzsnf2bbyvrql5wy4fiy8j-nodejs-20.15.1"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "pandoc",
+      "broken": false,
+      "derivation": "/nix/store/knf587vqq8d401arwrza0135sd1h3832-pandoc-cli-3.1.11.1.drv",
+      "description": "Conversion between documentation formats",
+      "install_id": "pandoc",
+      "license": "GPL-2.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=cb9a96f23c491c081b38eab96d22fa958043c9fa",
+      "name": "pandoc-cli-3.1.11.1",
+      "pname": "pandoc",
+      "rev": "cb9a96f23c491c081b38eab96d22fa958043c9fa",
+      "rev_count": 662544,
+      "rev_date": "2024-08-04T23:25:57Z",
+      "scrape_date": "2024-08-07T02:06:32Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "cli-3.1.11.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/mwyx2bsf2a7189pwjv2r7rzmakzifnl6-pandoc-cli-3.1.11.1"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "pandoc",
+      "broken": false,
+      "derivation": "/nix/store/mgpnxfvds04ivbsf88l8x0jvvm9djwa6-pandoc-cli-3.1.11.1.drv",
+      "description": "Conversion between documentation formats",
+      "install_id": "pandoc",
+      "license": "GPL-2.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=cb9a96f23c491c081b38eab96d22fa958043c9fa",
+      "name": "pandoc-cli-3.1.11.1",
+      "pname": "pandoc",
+      "rev": "cb9a96f23c491c081b38eab96d22fa958043c9fa",
+      "rev_count": 662544,
+      "rev_date": "2024-08-04T23:25:57Z",
+      "scrape_date": "2024-08-07T02:06:32Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "cli-3.1.11.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/7jqrmyl90z1w3kn4h2r4hnj4gbh2g0a7-pandoc-cli-3.1.11.1"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "pandoc",
+      "broken": false,
+      "derivation": "/nix/store/sp3bpx3hlr2p7zvi0npavzl5ap320lyw-pandoc-cli-3.1.11.1.drv",
+      "description": "Conversion between documentation formats",
+      "install_id": "pandoc",
+      "license": "GPL-2.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=cb9a96f23c491c081b38eab96d22fa958043c9fa",
+      "name": "pandoc-cli-3.1.11.1",
+      "pname": "pandoc",
+      "rev": "cb9a96f23c491c081b38eab96d22fa958043c9fa",
+      "rev_count": 662544,
+      "rev_date": "2024-08-04T23:25:57Z",
+      "scrape_date": "2024-08-07T02:06:32Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "cli-3.1.11.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/ddmxa2fvnr5vh0psws0yfbvgb6afdb1l-pandoc-cli-3.1.11.1"
       },
       "system": "x86_64-linux",
       "group": "toplevel",

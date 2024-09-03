@@ -1,9 +1,9 @@
-[package]
-name = "proctrace"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+members = ["proctrace", "xtask"]
+default-members = ["proctrace"]
+resolver = "2"
 
-[dependencies]
+[workspace.dependencies]
 anyhow = "1.0.86"
 clap = { version = "4.5.13", features = ["derive", "wrap_help"] }
 clap_derive = "4.5.13"
@@ -11,8 +11,10 @@ nix = "0.29.0"
 regex-lite = "0.1.6"
 serde = {version = "1", features = ["derive"]}
 serde_json = "1"
-
-[target.'cfg(target_os = "linux")'.dependencies]
 procfs = "0.16.0"
 shellish_parse = "2.2.0"
 signal-hook = "0.3.17"
+
+# For generating manpages
+clap_mangen = "0.2.23"
+tempfile = "3.12.0"

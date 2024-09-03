@@ -1,0 +1,12 @@
+[package]
+name = "xtask"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+clap_derive.workspace = true
+clap_mangen.workspace = true
+proctrace = { path = "../proctrace" }
+tempfile.workspace = true
