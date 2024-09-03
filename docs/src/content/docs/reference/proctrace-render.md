@@ -6,7 +6,7 @@ title: proctrace-render
 
 # NAME
 
-proctrace-render - Render the recording in the specified display format
+proctrace-render - Render a recording in the specified display format
 
 # SYNOPSIS
 
@@ -16,7 +16,7 @@ proctrace-render - Render the recording in the specified display format
 
 # DESCRIPTION
 
-Render the recording in the specified display format
+Render a recording in the specified display format
 
 # OPTIONS
 

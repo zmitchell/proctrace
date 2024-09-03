@@ -12,6 +12,9 @@ use std::sync::{atomic::AtomicBool, Arc};
 use utils::{new_buffered_input_stream, new_buffered_output_stream};
 use writers::JsonWriter;
 
+#[cfg(target_os = "linux")]
+use anyhow::Context;
+
 type Error = anyhow::Error;
 
 #[cfg(target_os = "linux")]

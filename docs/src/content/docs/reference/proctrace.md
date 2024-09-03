@@ -27,18 +27,18 @@ proctrace
 
 # SUBCOMMANDS
 
+proctrace-record(1)
+
+:   Record the process lifecycle events from a command
+
 proctrace-ingest(1)
 
-:   Convert a raw recording into a processed recording such that it is
-    ready for rendering
-
-proctrace-sort(1)
-
-:   Sort the output from a recording
+:   Convert a raw recording into a processed recording that can be
+    rendered
 
 proctrace-render(1)
 
-:   Render the recording in the specified display format
+:   Render a recording in the specified display format
 
 # VERSION
 

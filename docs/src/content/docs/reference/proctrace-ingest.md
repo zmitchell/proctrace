@@ -7,7 +7,7 @@ title: proctrace-ingest
 # NAME
 
 proctrace-ingest - Convert a raw recording into a processed recording
-such that it is ready for rendering
+that can be rendered
 
 # SYNOPSIS
 
@@ -17,8 +17,7 @@ such that it is ready for rendering
 
 # DESCRIPTION
 
-Convert a raw recording into a processed recording such that it is ready
-for rendering.
+Convert a raw recording into a processed recording that can be rendered.
 
 A recording produced in \"raw\" mode cannot be rendered directly, so it
 must first be processed into a render-ready form. This subcommand does
