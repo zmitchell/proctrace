@@ -330,7 +330,6 @@ fn render_single_span(
     mut writer: impl Write,
     initial_time: u128,
 ) -> Result<(), Error> {
-    eprintln!("span: {span:?}");
     let start = (span.start - initial_time) / 1_000_000;
     let duration = (span.stop - span.start) / 1_000_000;
     let line = format!(
@@ -352,12 +351,6 @@ fn clean_mermaid_label(label: impl AsRef<str>) -> String {
         denixified.to_string()
     }
 }
-
-// // Store paths and long argument lists don't work so well
-// fn printable_cmd(cmd: &str) -> String {
-//     let path = Path::new(cmd);
-//     path.file_name().unwrap().to_string_lossy().to_string()
-// }
 
 #[cfg(test)]
 mod test {
