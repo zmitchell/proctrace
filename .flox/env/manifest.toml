@@ -38,8 +38,13 @@ pandoc.pkg-path = "pandoc"
 
 [hook]
 on-activate = '''
-  export RUST_SRC_PATH="$FLOX_ENV"
   export PATH="$PWD/target/debug:$PATH"
+  if [ ! -d $PWD/docs/node_modules ]; then
+    echo "Installing node packages..." >&2
+    pushd docs >/dev/null
+    npm install
+    popd >/dev/null
+  fi
 '''
 
 [profile]

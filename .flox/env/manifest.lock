@@ -59,7 +59,7 @@
     },
     "vars": {},
     "hook": {
-      "on-activate": "  export RUST_SRC_PATH=\"$FLOX_ENV\"\n  export PATH=\"$PWD/target/debug:$PATH\"\n"
+      "on-activate": "  export PATH=\"$PWD/target/debug:$PATH\"\n  if [ ! -d $PWD/docs/node_modules ]; then\n    echo \"Installing node packages...\" >&2\n    pushd docs >/dev/null\n    npm install\n    popd >/dev/null\n  fi\n"
     },
     "profile": {},
     "options": {
