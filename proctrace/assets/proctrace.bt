@@ -5,17 +5,14 @@
 tracepoint:syscalls:sys_enter_clone
 {
   $task = (struct task_struct *)curtask;
-  // Ensures that we don't record threads exiting
-  if ($task->pid == $task->tgid) {
-    // Ensures that we don't process forks of threads
-    if ((args.clone_flags & 0x00010000) == 0) {
-	  // Store the elapsed time:
-      // - So we have a nonzero sentinel value
-      // - So we can properly record the start of the fork,
-      //   otherwise sometimes the exec shows up first.
-      $ts = elapsed;
-	  @clones[$task->tgid] = $ts;
-	}
+  // Ensures that we don't process forks of threads
+  if ((args.clone_flags & 0x00010000) == 0) {
+    // Store the elapsed time:
+    // - So we have a nonzero sentinel value
+    // - So we can properly record the start of the fork,
+    //   otherwise sometimes the exec shows up first.
+    $ts = elapsed;
+    @clones[tid] = $ts;
   }
 }
 
@@ -25,29 +22,26 @@ tracepoint:syscalls:sys_exit_clone
   // Ensures that we don't record threads exiting
   if ($task->pid == $task->tgid) {
     // Don't process this clone unless we've recorded the `enter` side of it
-	if (@clones[tid] != 0) {
+    if (@clones[tid] != 0) {
       $ts = @clones[tid];
-	  @clones[tid] = 0;
-	  $child_pid = args.ret;
-	  printf("FORK: ts=%u,parent_pid=%d,child_pid=%d,parent_pgid=%d\n", $ts, $task->tgid, $child_pid, $task->real_parent->tgid);
-	}
+      @clones[tid] = 0;
+      $child_pid = args.ret;
+      printf("FORK: ts=%u,parent_pid=%d,child_pid=%d,parent_pgid=%d\n", $ts, $task->tgid, $child_pid, $task->real_parent->tgid);
+    }
   }
 }
 
 tracepoint:syscalls:sys_enter_clone3
 {
   $task = (struct task_struct *)curtask;
-  // Ensures that we don't record a clone unless it's a process
-  if ($task->pid == $task->tgid) {
-	// Ensures that we don't record a fork of a thread
-	if ((args.uargs->flags & 0x00010000) == 0) {
-	  // Store the elapsed time:
-      // - So we have a nonzero sentinel value
-      // - So we can properly record the start of the fork,
-      //   otherwise sometimes the exec shows up first.
-      $ts = elapsed;
-	  @clones[tid] = $ts;
-	}
+  // Ensures that we don't record a fork of a thread
+  if ((args.uargs->flags & 0x00010000) == 0) {
+    // Store the elapsed time:
+    // - So we have a nonzero sentinel value
+    // - So we can properly record the start of the fork,
+    //   otherwise sometimes the exec shows up first.
+    $ts = elapsed;
+    @clones[tid] = $ts;
   }
 }
 
@@ -57,11 +51,11 @@ tracepoint:syscalls:sys_exit_clone3
   // Ensures that we don't record a clone unless it's a process
   if ($task->pid == $task->tgid) {
     // Don't process this clone unless we've seen the `enter` side of it
-	if (@clones[tid] != 0) {
+    if (@clones[tid] != 0) {
       $ts = @clones[tid];
-	  @clones[tid] = 0;
-	  $child_pid = args.ret;
-	  printf("FORK: ts=%u,parent_pid=%d,child_pid=%d,parent_pgid=%d\n", $ts, $task->tgid, $child_pid, $task->real_parent->tgid);
+      @clones[tid] = 0;
+      $child_pid = args.ret;
+      printf("FORK: ts=%u,parent_pid=%d,child_pid=%d,parent_pgid=%d\n", $ts, $task->tgid, $child_pid, $task->real_parent->tgid);
     }
   }
 }
@@ -89,7 +83,7 @@ tracepoint:sched:sched_process_exit
   // Ensures that we don't record threads exiting
   if ($task->pid == $task->tgid) {
     $ts = elapsed;
-  	printf("EXIT: ts=%u,pid=%d,ppid=%d,pgid=%d\n", $ts, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
+    printf("EXIT: ts=%u,pid=%d,ppid=%d,pgid=%d\n", $ts, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
   }
 }
 
