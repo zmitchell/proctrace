@@ -37,6 +37,7 @@ just.pkg-path = "just"
 mermaid-cli.pkg-path = "mermaid-cli"
 nodejs.pkg-path = "nodejs"
 pandoc.pkg-path = "pandoc"
+lldb.pkg-path = "lldb"
 
 [vars]
 

@@ -1,52 +1,40 @@
-EXEC: ts=874201623,pid=566954,ppid=566940,pgid=566954
-EXEC_ARGS: ts=874201623,pid=566954,/usr/bin/env bash ./demo_script.sh
-EXEC_ARGS: ts=874201623,pid=566954,./demo_script.sh
-FORK: ts=874106944,parent_pid=566940,child_pid=566954,parent_pgid=566939
-EXEC: ts=875296339,pid=566954,ppid=566940,pgid=566954
-EXEC_ARGS: ts=875296339,pid=566954,/usr/bin/env bash ./demo_script.sh
-EXEC_ARGS: ts=875296339,pid=566954,bash ./demo_script.sh
-EXEC: ts=875354678,pid=566954,ppid=566940,pgid=566954
-EXEC_ARGS: ts=875354678,pid=566954,/usr/bin/env bash ./demo_script.sh
-EXEC_ARGS: ts=875354678,pid=566954,bash ./demo_script.sh
-EXEC: ts=875404667,pid=566954,ppid=566940,pgid=566954
-EXEC_ARGS: ts=875404667,pid=566954,/usr/bin/env bash ./demo_script.sh
-EXEC_ARGS: ts=875404667,pid=566954,bash ./demo_script.sh
-EXEC: ts=875457447,pid=566954,ppid=566940,pgid=566954
-EXEC_ARGS: ts=875457447,pid=566954,
-EXEC_ARGS: ts=875457447,pid=566954,bash ./demo_script.sh
-EXEC: ts=875489336,pid=566954,ppid=566940,pgid=566954
-EXEC_ARGS: ts=875489336,pid=566954,bash ./demo_script.sh
-EXEC_ARGS: ts=875489336,pid=566954,bash ./demo_script.sh
-EXEC: ts=875526926,pid=566954,ppid=566940,pgid=566954
-EXEC_ARGS: ts=875526926,pid=566954,bash ./demo_script.sh
-EXEC_ARGS: ts=875526926,pid=566954,bash ./demo_script.sh
-EXEC: ts=875571015,pid=566954,ppid=566940,pgid=566954
-EXEC_ARGS: ts=875571015,pid=566954,bash ./demo_script.sh
-EXEC_ARGS: ts=875571015,pid=566954,bash ./demo_script.sh
-EXEC: ts=875602105,pid=566954,ppid=566940,pgid=566954
-EXEC_ARGS: ts=875602105,pid=566954,bash ./demo_script.sh
-EXEC_ARGS: ts=875602105,pid=566954,bash ./demo_script.sh
-EXEC: ts=875633734,pid=566954,ppid=566940,pgid=566954
-EXEC_ARGS: ts=875633734,pid=566954,bash ./demo_script.sh
-EXEC_ARGS: ts=875633734,pid=566954,bash ./demo_script.sh
-EXEC: ts=875674564,pid=566954,ppid=566940,pgid=566954
-EXEC_ARGS: ts=875674564,pid=566954,bash ./demo_script.sh
-EXEC_ARGS: ts=875674564,pid=566954,bash ./demo_script.sh
-EXEC: ts=875707274,pid=566954,ppid=566940,pgid=566954
-EXEC_ARGS: ts=875707274,pid=566954,bash ./demo_script.sh
-EXEC_ARGS: ts=875707274,pid=566954,bash ./demo_script.sh
-FORK: ts=877599490,parent_pid=566954,child_pid=566955,parent_pgid=566940
-EXIT: ts=877995285,pid=566955,ppid=566954,pgid=566955
-FORK: ts=878221082,parent_pid=566954,child_pid=566956,parent_pgid=566940
-EXEC: ts=878429699,pid=566956,ppid=566954,pgid=566956
-EXEC_ARGS: ts=878429699,pid=566956,
-EXEC_ARGS: ts=878429699,pid=566956,sleep 0.25
-EXIT: ts=1129839058,pid=566956,ppid=566954,pgid=566956
-FORK: ts=1130015346,parent_pid=566954,child_pid=566957,parent_pgid=566940
-EXEC: ts=1130503480,pid=566957,ppid=566954,pgid=566957
-EXEC_ARGS: ts=1130503480,pid=566957,
-EXEC_ARGS: ts=1130503480,pid=566957,curl -s -X GET example.com -o /dev/null -w %{http_code}
-EXIT: ts=1203740882,pid=566957,ppid=566954,pgid=566957
-FORK: ts=1203848581,parent_pid=566954,child_pid=566959,parent_pgid=566940
-EXIT: ts=1204271226,pid=566959,ppid=566954,pgid=566959
-EXIT: ts=1204543692,pid=566954,ppid=566940,pgid=566954
+EXEC_FILENAME: seq=1,ts=825573691,pid=2837764,filename=./demo_script.sh
+EXEC_ARGS: seq=2,ts=825573691,pid=2837764,./demo_script.sh
+FORK: seq=3,ts=825507751,parent_pid=2837748,child_pid=2837764,parent_pgid=2837747
+EXEC: seq=4,ts=825573691,pid=2837764,ppid=2837748,pgid=2837764
+EXEC_FILENAME: seq=5,ts=826461572,pid=2837764,filename=/home/zmitchell/src/proctrace/fix-failed-syscalls/target/debug/bash
+EXEC_ARGS: seq=6,ts=826461572,pid=2837764,bash ./demo_script.sh
+BADEXEC: seq=7,ts=826518391,pid=2837764
+EXEC_FILENAME: seq=8,ts=826521091,pid=2837764,filename=/home/zmitchell/src/proctrace/fix-failed-syscalls/.flox/run/x86_64-linux.proctrace.dev/bin/bash
+EXEC_ARGS: seq=9,ts=826521091,pid=2837764,bash ./demo_script.sh
+BADEXEC: seq=10,ts=826571120,pid=2837764
+EXEC_FILENAME: seq=11,ts=826573570,pid=2837764,filename=/home/zmitchell/src/proctrace/fix-failed-syscalls/.flox/run/x86_64-linux.proctrace.dev/sbin/bash
+EXEC_ARGS: seq=12,ts=826573570,pid=2837764,bash ./demo_script.sh
+BADEXEC: seq=13,ts=826625060,pid=2837764
+EXEC_FILENAME: seq=14,ts=826627430,pid=2837764,filename=/home/zmitchell/bin/bash
+EXEC_ARGS: seq=15,ts=826627430,pid=2837764,bash ./demo_script.sh
+BADEXEC: seq=16,ts=826660400,pid=2837764
+EXEC_FILENAME: seq=17,ts=826662870,pid=2837764,filename=/home/zmitchell/.local/bin/bash
+EXEC_ARGS: seq=18,ts=826662870,pid=2837764,bash ./demo_script.sh
+BADEXEC: seq=19,ts=826696669,pid=2837764
+EXEC_FILENAME: seq=20,ts=826698929,pid=2837764,filename=/run/wrappers/bin/bash
+EXEC_ARGS: seq=21,ts=826698929,pid=2837764,bash ./demo_script.sh
+BADEXEC: seq=22,ts=826736319,pid=2837764
+EXEC_FILENAME: seq=23,ts=826738609,pid=2837764,filename=/home/zmitchell/.nix-profile/bin/bash
+EXEC_ARGS: seq=24,ts=826738609,pid=2837764,bash ./demo_script.sh
+EXEC: seq=25,ts=826738609,pid=2837764,ppid=2837748,pgid=2837764
+FORK: seq=26,ts=828885907,parent_pid=2837764,child_pid=2837765,parent_pgid=2837748
+EXIT: seq=27,ts=829282723,pid=2837765,ppid=2837764,pgid=2837765
+FORK: seq=28,ts=829444121,parent_pid=2837764,child_pid=2837766,parent_pgid=2837748
+EXEC_FILENAME: seq=29,ts=829609969,pid=2837766,filename=/run/current-system/sw/bin/sleep
+EXEC_ARGS: seq=30,ts=829609969,pid=2837766,sleep 0.25
+EXEC: seq=31,ts=829609969,pid=2837766,ppid=2837764,pgid=2837766
+EXIT: seq=32,ts=1081134659,pid=2837766,ppid=2837764,pgid=2837766
+FORK: seq=33,ts=1081293127,parent_pid=2837764,child_pid=2837767,parent_pgid=2837748
+EXEC_FILENAME: seq=34,ts=1081752212,pid=2837767,filename=/run/current-system/sw/bin/curl
+EXEC_ARGS: seq=35,ts=1081752212,pid=2837767,curl -s -X GET example.com -o /dev/null -w %{http_code}
+EXEC: seq=36,ts=1081752212,pid=2837767,ppid=2837764,pgid=2837767
+EXIT: seq=37,ts=1158419511,pid=2837767,ppid=2837764,pgid=2837767
+FORK: seq=38,ts=1158555580,parent_pid=2837764,child_pid=2837769,parent_pgid=2837748
+EXIT: seq=39,ts=1159095554,pid=2837769,ppid=2837764,pgid=2837769
+EXIT: seq=40,ts=1159379491,pid=2837764,ppid=2837748,pgid=2837764

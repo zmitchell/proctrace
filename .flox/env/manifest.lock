@@ -43,6 +43,9 @@
           "aarch64-darwin"
         ]
       },
+      "lldb": {
+        "pkg-path": "lldb"
+      },
       "mermaid-cli": {
         "pkg-path": "mermaid-cli"
       },
@@ -69,7 +72,6 @@
         "pkg-group": "rust-toolchain"
       }
     },
-    "vars": {},
     "hook": {
       "on-activate": "  export PATH=\"$PWD/target/debug:$PATH\"\n  if [ ! -d $PWD/docs/node_modules ]; then\n    echo \"Installing node packages...\" >&2\n    pushd docs >/dev/null\n    npm install\n    popd >/dev/null\n  fi\n"
     },
@@ -90,10 +92,10 @@
         "command": "cd docs; npm run dev",
         "vars": null,
         "is-daemon": null,
-        "shutdown": null
+        "shutdown": null,
+        "systems": null
       }
-    },
-    "build": {}
+    }
   },
   "packages": [
     {
@@ -1000,6 +1002,101 @@
         "out": "/nix/store/zrp98d2dm0zix7ghj1v0bz7hp7a0h134-libiconv-99"
       },
       "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "lldb",
+      "broken": false,
+      "derivation": "/nix/store/zf7q55qg4q45c2ah8mwnxxpv7k07qj6m-lldb-16.0.6.drv",
+      "description": "Next-generation high-performance debugger",
+      "install_id": "lldb",
+      "license": "NCSA",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=cb9a96f23c491c081b38eab96d22fa958043c9fa",
+      "name": "lldb-16.0.6",
+      "pname": "lldb",
+      "rev": "cb9a96f23c491c081b38eab96d22fa958043c9fa",
+      "rev_count": 662544,
+      "rev_date": "2024-08-04T23:25:57Z",
+      "scrape_date": "2024-08-07T02:06:32Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "16.0.6",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/hys0724ckmb7xgkfim3sf80xh65b0k1a-lldb-16.0.6-dev",
+        "out": "/nix/store/79kcpi2dzsml9938b1qr8jkknwp483ww-lldb-16.0.6"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "lldb",
+      "broken": false,
+      "derivation": "/nix/store/588jbdqd9lnb3vzzaibvf3bll72a9bwq-lldb-18.1.8.drv",
+      "description": "Next-generation high-performance debugger",
+      "install_id": "lldb",
+      "license": "NCSA",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=cb9a96f23c491c081b38eab96d22fa958043c9fa",
+      "name": "lldb-18.1.8",
+      "pname": "lldb",
+      "rev": "cb9a96f23c491c081b38eab96d22fa958043c9fa",
+      "rev_count": 662544,
+      "rev_date": "2024-08-04T23:25:57Z",
+      "scrape_date": "2024-08-07T02:06:32Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "18.1.8",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/krdbklh0pxlrrivdghkgd2akd0vcmiqq-lldb-18.1.8-dev",
+        "lib": "/nix/store/khcyi3xxi7skvb5x1gm8kydzcrqfpy56-lldb-18.1.8-lib",
+        "out": "/nix/store/jl56gfbjdj149715q6byscwzd5bradzm-lldb-18.1.8"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "lldb",
+      "broken": false,
+      "derivation": "/nix/store/3n6r7xi6qiyl907h8g7yprk6p614hsmy-lldb-18.1.8.drv",
+      "description": "Next-generation high-performance debugger",
+      "install_id": "lldb",
+      "license": "NCSA",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=cb9a96f23c491c081b38eab96d22fa958043c9fa",
+      "name": "lldb-18.1.8",
+      "pname": "lldb",
+      "rev": "cb9a96f23c491c081b38eab96d22fa958043c9fa",
+      "rev_count": 662544,
+      "rev_date": "2024-08-04T23:25:57Z",
+      "scrape_date": "2024-08-07T02:06:32Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "18.1.8",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/l7cw4px7rvrhn04i89ybmmszk3ybza6h-lldb-18.1.8-dev",
+        "lib": "/nix/store/kbmfmrq9vq957bkcd69ahmwz6pp2j931-lldb-18.1.8-lib",
+        "out": "/nix/store/ykhda0rsf7j6798daf334j6f9j7b9vha-lldb-18.1.8"
+      },
+      "system": "x86_64-linux",
       "group": "toplevel",
       "priority": 5
     },
