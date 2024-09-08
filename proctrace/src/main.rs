@@ -4,13 +4,13 @@ use cli::Command;
 use ingest::ingest_raw;
 #[cfg(target_os = "linux")]
 use record::record;
-use render::render;
+use render::{render, render_sequential};
 
 #[cfg(target_os = "linux")]
 use std::sync::{atomic::AtomicBool, Arc};
 
 use utils::{new_buffered_input_stream, new_buffered_output_stream};
-use writers::JsonWriter;
+use writers::NoOpWriter;
 
 #[cfg(target_os = "linux")]
 use anyhow::Context;
@@ -44,7 +44,7 @@ fn main() -> Result<(), Error> {
             user_cmd.args(&args.cmd[1..]);
 
             let writer = new_buffered_output_stream(&args.output_path)?;
-            let ingester = record(
+            let mut ingester = record(
                 user_cmd,
                 args.bpftrace_path,
                 shutdown_flag.clone(),
@@ -53,6 +53,8 @@ fn main() -> Result<(), Error> {
                 writer,
             )
             .context("failed while recording events")?;
+            ingester.tracked_events().print_buffers();
+            ingester.post_process_buffers();
             if args.raw {
                 eprintln!(
                     "Process tree root was PID {}",
@@ -61,6 +63,10 @@ fn main() -> Result<(), Error> {
                         .map(|pid| format!("{pid}"))
                         .unwrap_or("UNSET".to_string())
                 );
+            } else {
+                let writer = new_buffered_output_stream(&args.output_path)?;
+                ingester.tracked_events().print_buffers();
+                render_sequential(ingester, writer)?;
             }
         }
         Command::Render(args) => {
@@ -71,8 +77,10 @@ fn main() -> Result<(), Error> {
         Command::Ingest(args) => {
             let reader = new_buffered_input_stream(&args.input_path)?;
             let write_stream = new_buffered_output_stream(&args.output_path)?;
-            let writer = JsonWriter::new(write_stream);
-            ingest_raw(args.debug, args.root_pid, reader, writer)?;
+            let dummy_writer = NoOpWriter;
+            let mut ingester = ingest_raw(args.debug, args.root_pid, reader, dummy_writer)?;
+            ingester.post_process_buffers();
+            render_sequential(ingester, write_stream)?;
         }
     }
 

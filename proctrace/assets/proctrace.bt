@@ -16,21 +16,6 @@ tracepoint:syscalls:sys_enter_clone
   }
 }
 
-tracepoint:syscalls:sys_exit_clone
-{
-  $task = (struct task_struct *)curtask;
-  // Ensures that we don't record threads exiting
-  if ($task->pid == $task->tgid) {
-    // Don't process this clone unless we've recorded the `enter` side of it
-    if (@clones[tid] != 0) {
-      $ts = @clones[tid];
-      @clones[tid] = 0;
-      $child_pid = args.ret;
-      printf("FORK: ts=%u,parent_pid=%d,child_pid=%d,parent_pgid=%d\n", $ts, $task->tgid, $child_pid, $task->real_parent->tgid);
-    }
-  }
-}
-
 tracepoint:syscalls:sys_enter_clone3
 {
   $task = (struct task_struct *)curtask;
@@ -45,18 +30,24 @@ tracepoint:syscalls:sys_enter_clone3
   }
 }
 
+tracepoint:syscalls:sys_exit_clone,
 tracepoint:syscalls:sys_exit_clone3
 {
   $task = (struct task_struct *)curtask;
-  // Ensures that we don't record a clone unless it's a process
-  if ($task->pid == $task->tgid) {
-    // Don't process this clone unless we've seen the `enter` side of it
-    if (@clones[tid] != 0) {
-      $ts = @clones[tid];
-      @clones[tid] = 0;
-      $child_pid = args.ret;
-      printf("FORK: ts=%u,parent_pid=%d,child_pid=%d,parent_pgid=%d\n", $ts, $task->tgid, $child_pid, $task->real_parent->tgid);
-    }
+
+  // Ensures that we don't record threads exiting
+  $is_process = $task->pid == $task->tgid;
+  // Don't process this clone unless we've recorded the `enter` side of it
+  $was_recorded = @clones[tid] != 0;
+  // The return value is the child PID
+  $child_pid = args.ret;
+
+  if ($is_process && $was_recorded) {
+    $ts = @clones[tid];
+    @clones[tid] = 0;
+    $child_pid = args.ret;
+    @seq = count();
+    printf("FORK: seq=%d,ts=%u,parent_pid=%d,child_pid=%d,parent_pgid=%d\n", (int64)@seq, $ts, $task->tgid, $child_pid, $task->real_parent->tgid);
   }
 }
 
@@ -68,9 +59,53 @@ tracepoint:syscalls:sys_enter_execve
 {
   $task = (struct task_struct *)curtask;
   $ts = elapsed;
-  printf("EXEC: ts=%u,pid=%d,ppid=%d,pgid=%d\n", $ts, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
-  printf("EXEC_ARGS: ts=%u,pid=%d,", $ts, $task->tgid);
+  @execs[tid] = $ts;
+
+  // We don't have access to this data in the exit hook, so we print it now
+  // and if it's not relevant we will discard it on the proctrace side, and
+  // if it *is* relevant, it will get reordered.
+
+  @seq = count();
+  printf("EXEC_FILENAME: seq=%d,ts=%u,pid=%d,filename=", (int64)@seq, $ts, $task->tgid);
+  // Store the count *immediately* afterwards. Printing the filename can be slow enough
+  // that the sys_exit_execve can fire before we ever get to printing the EXEC_ARGS line.
+  @seq = count();
+  // Filenames can be long, especially if they refer to a Nix store path,
+  // and `join` can truncate strings, so we print one character at a time. 
+  $i = 0;
+  while ($i < 512) {
+    $charPtr = (uint8 *) (args.filename + $i);
+    if ( (*$charPtr) == 0) {
+      printf("\n");
+      break;
+    }
+    printf("%c", *$charPtr);
+    $i = $i + 1;
+  }
+  // Handle the case where we run out of space
+  if ($i == 512) {
+    printf("...\n");
+  }
+
+  printf("EXEC_ARGS: seq=%d,ts=%u,pid=%d,", (int64)@seq, $ts, $task->tgid);
   join(args.argv);
+}
+
+tracepoint:syscalls:sys_exit_execve
+{
+  $task = (struct task_struct *)curtask;
+  $was_recorded = @execs[tid] != 0;
+  $succeeded = args.ret == 0;
+  if ($was_recorded && $succeeded) {
+    $ts = @execs[tid];
+    @seq = count();
+    printf("EXEC: seq=%d,ts=%u,pid=%d,ppid=%d,pgid=%d\n", (int64)@seq, $ts, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
+  } else {
+    $ts = elapsed;
+    @seq = count();
+    printf("BADEXEC: seq=%d,ts=%u,pid=%d\n", (int64)@seq, $ts, $task->tgid);
+  }
+  @execs[tid] = 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -83,7 +118,8 @@ tracepoint:sched:sched_process_exit
   // Ensures that we don't record threads exiting
   if ($task->pid == $task->tgid) {
     $ts = elapsed;
-    printf("EXIT: ts=%u,pid=%d,ppid=%d,pgid=%d\n", $ts, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
+    @seq = count();
+    printf("EXIT: seq=%d,ts=%u,pid=%d,ppid=%d,pgid=%d\n", (int64)@seq, $ts, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
   }
 }
 
@@ -96,16 +132,24 @@ tracepoint:syscalls:sys_exit_setsid
   $task = (struct task_struct *)curtask;
   $session = args.ret;
   $ts = elapsed;
-  printf("SETSID: ts=%u,pid=%d,ppid=%d,pgid=%d,sid=%d\n", $ts, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid, $session);
+  if ($session != -1) {
+    @seq = count();
+    printf("SETSID: seq=%d,ts=%u,pid=%d,ppid=%d,pgid=%d,sid=%d\n", (int64)@seq, $ts, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid, $session);
+  }
 }
 
 tracepoint:syscalls:sys_exit_setpgid
 {
   $task = (struct task_struct *)curtask;
   $ts = elapsed;
-  printf("SETPGID: ts=%u,pid=%d,ppid=%d,pgid=%d\n", $ts, $task->tgid, $task->real_parent->tgid, args.ret);
+  if (args.ret != -1) {
+    @seq = count();
+    printf("SETPGID: seq=%d,ts=%u,pid=%d,ppid=%d,pgid=%d\n", (int64)@seq, $ts, $task->tgid, $task->real_parent->tgid, args.ret);
+  }
 }
 
 END {
   clear(@clones);
+  clear(@execs);
+  clear(@seq);
 }

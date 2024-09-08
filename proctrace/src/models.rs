@@ -5,6 +5,8 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
+use crate::ingest::clean_exec_sequences;
+
 type Error = anyhow::Error;
 
 /// Represents the arguments for an `exec` call.
@@ -31,30 +33,55 @@ impl Display for ExecArgsKind {
 #[allow(dead_code)]
 pub enum Event {
     Fork {
+        seq: u128,
         timestamp: u128,
         parent_pid: i32,
         child_pid: i32,
         parent_pgid: i32,
     },
     Exec {
+        seq: u128,
         timestamp: u128,
         pid: i32,
         ppid: i32,
         pgid: i32,
         cmdline: Option<ExecArgsKind>,
     },
+    BadExec {
+        seq: u128,
+        timestamp: u128,
+        pid: i32,
+    },
+    ExecFilename {
+        seq: u128,
+        timestamp: u128,
+        pid: i32,
+        filename: String,
+    },
     ExecArgs {
+        seq: u128,
         timestamp: u128,
         pid: i32,
         args: ExecArgsKind,
     },
+    ExecFull {
+        seq: u128,
+        timestamp: u128,
+        pid: i32,
+        ppid: i32,
+        pgid: i32,
+        filename: String,
+        args: ExecArgsKind,
+    },
     Exit {
+        seq: u128,
         timestamp: u128,
         pid: i32,
         ppid: i32,
         pgid: i32,
     },
     SetSID {
+        seq: u128,
         timestamp: u128,
         pid: i32,
         ppid: i32,
@@ -62,6 +89,7 @@ pub enum Event {
         sid: i32,
     },
     SetPGID {
+        seq: u128,
         timestamp: u128,
         pid: i32,
         ppid: i32,
@@ -77,9 +105,30 @@ impl PartialOrd for Event {
 
 impl Ord for Event {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let timestamp = self.timestamp();
-        let other_timestamp = other.timestamp();
-        timestamp.cmp(&other_timestamp)
+        let seq = self.seq();
+        let other_seq = other.seq();
+        seq.cmp(&other_seq)
+    }
+}
+
+impl std::fmt::Display for Event {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Event::Fork {
+                parent_pid,
+                child_pid,
+                seq,
+                ..
+            } => write!(f, "Fork(seq:{seq},parent:{parent_pid},child:{child_pid})"),
+            Event::Exec { seq, pid, .. } => write!(f, "Exec(seq:{seq},pid:{pid})"),
+            Event::BadExec { seq, pid, .. } => write!(f, "BadExec(seq:{seq},pid:{pid})"),
+            Event::ExecFilename { seq, pid, .. } => write!(f, "ExecFilename(seq:{seq},pid:{pid})"),
+            Event::ExecArgs { seq, pid, .. } => write!(f, "ExecArgs(seq:{seq},pid:{pid})"),
+            Event::ExecFull { seq, pid, .. } => write!(f, "ExecFull(seq:{seq},pid:{pid})"),
+            Event::Exit { seq, pid, .. } => write!(f, "Exit(seq:{seq},pid:{pid})"),
+            Event::SetSID { seq, pid, .. } => write!(f, "SetSID(seq:{seq},pid:{pid})"),
+            Event::SetPGID { seq, pid, .. } => write!(f, "SetPGID(seq:{seq},pid:{pid})"),
+        }
     }
 }
 
@@ -88,6 +137,9 @@ impl Event {
         match self {
             Event::Fork { timestamp, .. } => *timestamp,
             Event::Exec { timestamp, .. } => *timestamp,
+            Event::BadExec { timestamp, .. } => *timestamp,
+            Event::ExecFilename { timestamp, .. } => *timestamp,
+            Event::ExecFull { timestamp, .. } => *timestamp,
             Event::ExecArgs { timestamp, .. } => *timestamp,
             Event::Exit { timestamp, .. } => *timestamp,
             Event::SetSID { timestamp, .. } => *timestamp,
@@ -95,10 +147,27 @@ impl Event {
         }
     }
 
+    pub fn seq(&self) -> u128 {
+        match self {
+            Event::Fork { seq, .. } => *seq,
+            Event::Exec { seq, .. } => *seq,
+            Event::BadExec { seq, .. } => *seq,
+            Event::ExecFilename { seq, .. } => *seq,
+            Event::ExecFull { seq, .. } => *seq,
+            Event::ExecArgs { seq, .. } => *seq,
+            Event::Exit { seq, .. } => *seq,
+            Event::SetSID { seq, .. } => *seq,
+            Event::SetPGID { seq, .. } => *seq,
+        }
+    }
+
     pub fn pid(&self) -> i32 {
         match self {
             Event::Fork { child_pid, .. } => *child_pid,
             Event::Exec { pid, .. } => *pid,
+            Event::BadExec { pid, .. } => *pid,
+            Event::ExecFilename { pid, .. } => *pid,
+            Event::ExecFull { pid, .. } => *pid,
             Event::ExecArgs { pid, .. } => *pid,
             Event::Exit { pid, .. } => *pid,
             Event::SetSID { pid, .. } => *pid,
@@ -152,11 +221,10 @@ impl EventStore {
     pub fn add(&mut self, pid: i32, event: &Event) {
         let events = self.inner.entry(pid).or_default();
         // Events are stored in timestamp-sorted order
-        let insert_point =
-            match events.binary_search_by_key(&event.timestamp(), |event| event.timestamp()) {
-                Ok(found_idx) => found_idx + 1,
-                Err(candidate_idx) => candidate_idx,
-            };
+        let insert_point = match events.binary_search_by_key(&event.seq(), |event| event.seq()) {
+            Ok(found_idx) => found_idx + 1,
+            Err(candidate_idx) => candidate_idx,
+        };
         events.insert(insert_point, event.clone());
     }
 
@@ -203,13 +271,13 @@ impl EventStore {
     }
 
     /// Returns the set of currently tracked PIDs.
-    pub fn currently_tracked(&self) -> HashSet<i32> {
+    pub fn pids(&self) -> HashSet<i32> {
         self.inner.keys().cloned().collect::<HashSet<_>>()
     }
 
     /// Returns the PID of the process that this PID was forked from,
     /// if it's known.
-    pub fn parent(&self, child_pid: i32) -> Option<i32> {
+    pub fn parent_of_pid_if_stored(&self, child_pid: i32) -> Option<i32> {
         self.inner
             .get(&child_pid)
             .and_then(|events| events.front())
@@ -229,7 +297,7 @@ impl EventStore {
 
     /// Returns an iterator over the PID and buffer for each tracked PID
     /// in order of the timestamp of the earliest event for each PID.
-    pub fn pid_buffers_ordered(mut self) -> impl Iterator<Item = (i32, VecDeque<Event>)> {
+    pub fn into_pid_buffers_ordered(mut self) -> impl Iterator<Item = (i32, VecDeque<Event>)> {
         let mut pid_to_ts = self
             .inner
             .iter()
@@ -246,6 +314,16 @@ impl EventStore {
             pids_and_buffers.push((pid, self.inner.remove(&pid).unwrap()));
         }
         pids_and_buffers.into_iter()
+    }
+
+    pub fn print_buffers(&self) {
+        self.inner.iter().for_each(|(pid, buffer)| {
+            println!("Buffer for PID: {pid}");
+            for event in buffer.iter() {
+                println!("{event:?}");
+            }
+            println!();
+        });
     }
 
     /// Returns an iterator over the buffers in depth-first fork order.
@@ -273,7 +351,7 @@ impl EventStore {
             .inner
             .keys()
             .filter(|pid| {
-                self.parent(**pid)
+                self.parent_of_pid_if_stored(**pid)
                     .is_some_and(|parent| parent == parent_pid)
             })
             .copied()
@@ -303,6 +381,13 @@ impl EventStore {
         for (pid, buffer) in original.into_iter() {
             let new_buffer = collapse_buffer_execs(buffer.iter());
             self.inner.insert(pid, new_buffer);
+        }
+    }
+
+    /// Performs any necessary post processing of the stored events.
+    pub(crate) fn post_process_buffers(&mut self) {
+        for buffer in self.inner.values_mut() {
+            *buffer = clean_exec_sequences(buffer.make_contiguous());
         }
     }
 }
@@ -387,12 +472,14 @@ fn fill_in_exec_args(execs: &[&Event]) -> Option<Event> {
         [] => None,
         [event @ Exec { .. }] => Some((*event).clone()),
         [Exec {
+            seq,
             pid,
             timestamp,
             ppid,
             pgid,
             ..
         }, ExecArgs { args, .. }] => Some(Exec {
+            seq: *seq,
             cmdline: Some(args.clone()),
             timestamp: *timestamp,
             pid: *pid,
@@ -400,6 +487,7 @@ fn fill_in_exec_args(execs: &[&Event]) -> Option<Event> {
             pgid: *pgid,
         }),
         [Exec {
+            seq,
             pid,
             timestamp,
             ppid,
@@ -414,6 +502,7 @@ fn fill_in_exec_args(execs: &[&Event]) -> Option<Event> {
                 args2
             };
             Some(Exec {
+                seq: *seq,
                 pid: *pid,
                 ppid: *ppid,
                 pgid: *pgid,
@@ -435,6 +524,7 @@ mod test {
     #[test]
     fn events_inserted_in_order() {
         let events = make_simple_events(
+            0,
             0,
             &[
                 ("fork", 1, 0),
@@ -465,6 +555,7 @@ mod test {
     fn reports_unfinished_pids() {
         let events = make_simple_events(
             0,
+            0,
             &[
                 ("fork", 1, 0),
                 ("exec", 1, 0),
@@ -487,6 +578,7 @@ mod test {
     #[test]
     fn returns_ordered_events() {
         let events = make_simple_events(
+            0,
             0,
             &[
                 ("fork", 1, 0),
@@ -512,6 +604,7 @@ mod test {
     fn returns_ordered_buffers() {
         let events = make_simple_events(
             0,
+            0,
             &[
                 // These are all forks because that's what triggers storing
                 // events for a PID. These are all created from one another
@@ -529,7 +622,7 @@ mod test {
         }
 
         let ordered_pids = store
-            .pid_buffers_ordered()
+            .into_pid_buffers_ordered()
             .map(|(pid, _)| pid)
             .collect::<Vec<_>>();
         assert_eq!(ordered_pids, vec![1, 2, 3, 4]);
@@ -538,6 +631,7 @@ mod test {
     #[test]
     fn exec_args_when_no_args_provided() {
         let event = Event::Exec {
+            seq: 0,
             timestamp: 0,
             pid: 1,
             ppid: 0,
@@ -568,6 +662,7 @@ mod test {
     #[test]
     fn exec_args_filled_in_from_one_event() {
         let exec = Event::Exec {
+            seq: 0,
             timestamp: 0,
             pid: 1,
             ppid: 0,
@@ -576,6 +671,7 @@ mod test {
         };
         let args = ExecArgsKind::Joined("args".to_string());
         let exec_args = Event::ExecArgs {
+            seq: 1,
             timestamp: 1,
             pid: 1,
             args: args.clone(),
@@ -597,6 +693,7 @@ mod test {
     #[test]
     fn exec_args_filled_in_from_two_events() {
         let exec = Event::Exec {
+            seq: 0,
             timestamp: 0,
             pid: 1,
             ppid: 0,
@@ -606,11 +703,13 @@ mod test {
         let shorter_args = ExecArgsKind::Joined("args".to_string());
         let longer_args = ExecArgsKind::Joined("longer args".to_string());
         let exec_args1 = Event::ExecArgs {
+            seq: 1,
             timestamp: 1,
             pid: 1,
             args: shorter_args.clone(),
         };
         let exec_args2 = Event::ExecArgs {
+            seq: 2,
             timestamp: 1,
             pid: 1,
             args: longer_args.clone(),
@@ -634,6 +733,7 @@ mod test {
         assert!(fill_in_exec_args(&[]).is_none());
 
         let exec = Event::Exec {
+            seq: 0,
             timestamp: 0,
             pid: 1,
             ppid: 0,
@@ -644,6 +744,7 @@ mod test {
 
         let args = ExecArgsKind::Joined("args".to_string());
         let exec_args = Event::ExecArgs {
+            seq: 1,
             timestamp: 1,
             pid: 1,
             args: args.clone(),
@@ -654,8 +755,9 @@ mod test {
     #[test]
     fn collapses_buffer_execs_at_end() {
         let mut events =
-            make_simple_events(0, &[("fork", 1, 0), ("setpgid", 1, 0), ("exec", 1, 0)]);
+            make_simple_events(0, 0, &[("fork", 1, 0), ("setpgid", 1, 0), ("exec", 1, 0)]);
         events.push(Event::ExecArgs {
+            seq: 3,
             timestamp: 4,
             pid: 1,
             args: ExecArgsKind::Joined("args".to_string()),
@@ -673,6 +775,7 @@ mod test {
     #[test]
     fn collapses_buffer_execs_in_the_middle() {
         let events = make_simple_events(
+            0,
             0,
             &[
                 ("fork", 1, 0),
@@ -696,6 +799,7 @@ mod test {
     #[test]
     fn iterates_fork_order() {
         let events = make_simple_events(
+            0,
             0,
             &[
                 ("fork", 1, 0),

@@ -31,7 +31,7 @@ pub fn read_events(reader: impl Read) -> Result<EventIngester<NoOpWriter>, Error
     let Event::Fork { ref child_pid, .. } = first_event else {
         return Err(anyhow!("first event was not a fork"));
     };
-    let mut ingester: EventIngester<NoOpWriter> = EventIngester::new(Some(*child_pid), None, false);
+    let mut ingester: EventIngester<NoOpWriter> = EventIngester::new(Some(*child_pid), None);
     ingester.observe_event(&first_event)?;
     for maybe_event in de {
         match maybe_event {
@@ -60,7 +60,10 @@ pub fn render_events<T>(
     }
 }
 
-fn render_sequential<T>(ingester: EventIngester<T>, mut writer: impl Write) -> Result<(), Error> {
+pub(crate) fn render_sequential<T>(
+    ingester: EventIngester<T>,
+    mut writer: impl Write,
+) -> Result<(), Error> {
     for event in ingester.into_tracked_events().events_ordered() {
         serde_json::to_writer(&mut writer, &event).context("failed to write event")?;
         writer.write(b"\n").context("write failed")?;
@@ -69,7 +72,7 @@ fn render_sequential<T>(ingester: EventIngester<T>, mut writer: impl Write) -> R
 }
 
 fn render_by_process<T>(ingester: EventIngester<T>, mut writer: impl Write) -> Result<(), Error> {
-    for (pid, buffer) in ingester.into_tracked_events().pid_buffers_ordered() {
+    for (pid, buffer) in ingester.into_tracked_events().into_pid_buffers_ordered() {
         let header = extract_displayable_buffer_header(pid, &buffer)
             .context("failed to extract header for PID {pid}")?;
         writer
@@ -360,14 +363,14 @@ mod test {
 
     #[test]
     fn extracts_fork_span() {
-        let events = make_simple_events(0, &[("fork", 1, 0), ("exit", 1, 0)]);
+        let events = make_simple_events(0, 0, &[("fork", 1, 0), ("exit", 1, 0)]);
         let item = extract_fork_span(&events).unwrap();
         assert!(matches!(item, MermaidItem::Single(_)));
     }
 
     #[test]
     fn extracts_single_exec_span() {
-        let events = make_simple_events(0, &[("fork", 1, 0), ("exec", 1, 0), ("exit", 1, 0)]);
+        let events = make_simple_events(0, 0, &[("fork", 1, 0), ("exec", 1, 0), ("exit", 1, 0)]);
         let item = extract_single_exec_span(&events, 1).unwrap();
         assert!(matches!(item, MermaidItem::Single(_)));
     }
@@ -375,6 +378,7 @@ mod test {
     #[test]
     fn extracts_multiple_exec_spans() {
         let events = make_simple_events(
+            0,
             0,
             &[
                 ("fork", 1, 0),

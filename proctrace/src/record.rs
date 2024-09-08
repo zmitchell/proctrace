@@ -15,11 +15,9 @@ mod has_record_support {
     };
 
     use anyhow::Context;
-    use procfs::process::Process;
 
     use crate::{
         ingest::{EventIngester, EventParser},
-        models::{Event, ExecArgsKind},
         writers::JsonWriter,
         SCRIPT,
     };
@@ -47,7 +45,7 @@ mod has_record_support {
 
         let reader = BufReader::new(bpf_stdout);
         let event_parser = EventParser::new();
-        let mut ingester = EventIngester::new(None, Some(JsonWriter::new(output)), record_raw);
+        let mut ingester = EventIngester::new(None, Some(JsonWriter::new(output)));
 
         let mut user_cmd_started = false;
         let mut child = None;
@@ -85,28 +83,6 @@ mod has_record_support {
                     ingester
                         .observe_event(&event)
                         .with_context(|| format!("failed to ingest event: {event:?}"))?;
-                    if let Event::Exec { timestamp, pid, .. } = event {
-                        // Since we're online we can try looking up the exec args
-                        // in case the bpftrace bug prevents them from printing natively
-                        if let Some(args) = retrieve_procfs_exec_args(event.pid()) {
-                            let synthetic_event = Event::ExecArgs {
-                                timestamp,
-                                pid,
-                                args: args.clone(),
-                            };
-                            ingester
-                                .observe_event(&synthetic_event)
-                                .context("failed to ingest synthetic event")?;
-                            if record_raw {
-                                ingester.write_raw(&format!(
-                                    "EXEC_ARGS: ts={},pid={},{}",
-                                    timestamp,
-                                    pid,
-                                    args.to_string(),
-                                ))?;
-                            }
-                        }
-                    }
                 }
                 Err(err) => {
                     eprintln!("failed to parse line: {}", err);
@@ -133,15 +109,5 @@ mod has_record_support {
         }
 
         Ok(ingester)
-    }
-
-    /// Retrieves the exec args from `procfs` on Linux.
-    ///
-    /// Note that this may fail if the process is no longer running.
-    fn retrieve_procfs_exec_args(pid: i32) -> Option<ExecArgsKind> {
-        match Process::new(pid).and_then(|p| p.cmdline()) {
-            Ok(cmd) => Some(ExecArgsKind::Args(cmd)),
-            Err(_err) => None,
-        }
     }
 }

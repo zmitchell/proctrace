@@ -1,52 +1,14 @@
-{"Fork":{"timestamp":874106944,"parent_pid":566940,"child_pid":566954,"parent_pgid":566939}}
-{"Exec":{"timestamp":874201623,"pid":566954,"ppid":566940,"pgid":566954,"cmdline":null}}
-{"ExecArgs":{"timestamp":874201623,"pid":566954,"args":"/usr/bin/env bash ./demo_script.sh"}}
-{"ExecArgs":{"timestamp":874201623,"pid":566954,"args":"./demo_script.sh"}}
-{"Exec":{"timestamp":875296339,"pid":566954,"ppid":566940,"pgid":566954,"cmdline":null}}
-{"ExecArgs":{"timestamp":875296339,"pid":566954,"args":"/usr/bin/env bash ./demo_script.sh"}}
-{"ExecArgs":{"timestamp":875296339,"pid":566954,"args":"bash ./demo_script.sh"}}
-{"Exec":{"timestamp":875354678,"pid":566954,"ppid":566940,"pgid":566954,"cmdline":null}}
-{"ExecArgs":{"timestamp":875354678,"pid":566954,"args":"/usr/bin/env bash ./demo_script.sh"}}
-{"ExecArgs":{"timestamp":875354678,"pid":566954,"args":"bash ./demo_script.sh"}}
-{"Exec":{"timestamp":875404667,"pid":566954,"ppid":566940,"pgid":566954,"cmdline":null}}
-{"ExecArgs":{"timestamp":875404667,"pid":566954,"args":"/usr/bin/env bash ./demo_script.sh"}}
-{"ExecArgs":{"timestamp":875404667,"pid":566954,"args":"bash ./demo_script.sh"}}
-{"Exec":{"timestamp":875457447,"pid":566954,"ppid":566940,"pgid":566954,"cmdline":null}}
-{"ExecArgs":{"timestamp":875457447,"pid":566954,"args":""}}
-{"ExecArgs":{"timestamp":875457447,"pid":566954,"args":"bash ./demo_script.sh"}}
-{"Exec":{"timestamp":875489336,"pid":566954,"ppid":566940,"pgid":566954,"cmdline":null}}
-{"ExecArgs":{"timestamp":875489336,"pid":566954,"args":"bash ./demo_script.sh"}}
-{"ExecArgs":{"timestamp":875489336,"pid":566954,"args":"bash ./demo_script.sh"}}
-{"Exec":{"timestamp":875526926,"pid":566954,"ppid":566940,"pgid":566954,"cmdline":null}}
-{"ExecArgs":{"timestamp":875526926,"pid":566954,"args":"bash ./demo_script.sh"}}
-{"ExecArgs":{"timestamp":875526926,"pid":566954,"args":"bash ./demo_script.sh"}}
-{"Exec":{"timestamp":875571015,"pid":566954,"ppid":566940,"pgid":566954,"cmdline":null}}
-{"ExecArgs":{"timestamp":875571015,"pid":566954,"args":"bash ./demo_script.sh"}}
-{"ExecArgs":{"timestamp":875571015,"pid":566954,"args":"bash ./demo_script.sh"}}
-{"Exec":{"timestamp":875602105,"pid":566954,"ppid":566940,"pgid":566954,"cmdline":null}}
-{"ExecArgs":{"timestamp":875602105,"pid":566954,"args":"bash ./demo_script.sh"}}
-{"ExecArgs":{"timestamp":875602105,"pid":566954,"args":"bash ./demo_script.sh"}}
-{"Exec":{"timestamp":875633734,"pid":566954,"ppid":566940,"pgid":566954,"cmdline":null}}
-{"ExecArgs":{"timestamp":875633734,"pid":566954,"args":"bash ./demo_script.sh"}}
-{"ExecArgs":{"timestamp":875633734,"pid":566954,"args":"bash ./demo_script.sh"}}
-{"Exec":{"timestamp":875674564,"pid":566954,"ppid":566940,"pgid":566954,"cmdline":null}}
-{"ExecArgs":{"timestamp":875674564,"pid":566954,"args":"bash ./demo_script.sh"}}
-{"ExecArgs":{"timestamp":875674564,"pid":566954,"args":"bash ./demo_script.sh"}}
-{"Exec":{"timestamp":875707274,"pid":566954,"ppid":566940,"pgid":566954,"cmdline":null}}
-{"ExecArgs":{"timestamp":875707274,"pid":566954,"args":"bash ./demo_script.sh"}}
-{"ExecArgs":{"timestamp":875707274,"pid":566954,"args":"bash ./demo_script.sh"}}
-{"Fork":{"timestamp":877599490,"parent_pid":566954,"child_pid":566955,"parent_pgid":566940}}
-{"Exit":{"timestamp":877995285,"pid":566955,"ppid":566954,"pgid":566955}}
-{"Fork":{"timestamp":878221082,"parent_pid":566954,"child_pid":566956,"parent_pgid":566940}}
-{"Exec":{"timestamp":878429699,"pid":566956,"ppid":566954,"pgid":566956,"cmdline":null}}
-{"ExecArgs":{"timestamp":878429699,"pid":566956,"args":""}}
-{"ExecArgs":{"timestamp":878429699,"pid":566956,"args":"sleep 0.25"}}
-{"Exit":{"timestamp":1129839058,"pid":566956,"ppid":566954,"pgid":566956}}
-{"Fork":{"timestamp":1130015346,"parent_pid":566954,"child_pid":566957,"parent_pgid":566940}}
-{"Exec":{"timestamp":1130503480,"pid":566957,"ppid":566954,"pgid":566957,"cmdline":null}}
-{"ExecArgs":{"timestamp":1130503480,"pid":566957,"args":""}}
-{"ExecArgs":{"timestamp":1130503480,"pid":566957,"args":"curl -s -X GET example.com -o /dev/null -w %{http_code}"}}
-{"Exit":{"timestamp":1203740882,"pid":566957,"ppid":566954,"pgid":566957}}
-{"Fork":{"timestamp":1203848581,"parent_pid":566954,"child_pid":566959,"parent_pgid":566940}}
-{"Exit":{"timestamp":1204271226,"pid":566959,"ppid":566954,"pgid":566959}}
-{"Exit":{"timestamp":1204543692,"pid":566954,"ppid":566940,"pgid":566954}}
+{"Fork":{"seq":3,"timestamp":825507751,"parent_pid":2837748,"child_pid":2837764,"parent_pgid":2837747}}
+{"ExecFull":{"seq":4,"timestamp":825573691,"pid":2837764,"ppid":2837748,"pgid":2837764,"filename":"./demo_script.sh","args":"./demo_script.sh"}}
+{"ExecFull":{"seq":25,"timestamp":826738609,"pid":2837764,"ppid":2837748,"pgid":2837764,"filename":"/home/zmitchell/.nix-profile/bin/bash","args":"bash ./demo_script.sh"}}
+{"Fork":{"seq":26,"timestamp":828885907,"parent_pid":2837764,"child_pid":2837765,"parent_pgid":2837748}}
+{"Exit":{"seq":27,"timestamp":829282723,"pid":2837765,"ppid":2837764,"pgid":2837765}}
+{"Fork":{"seq":28,"timestamp":829444121,"parent_pid":2837764,"child_pid":2837766,"parent_pgid":2837748}}
+{"ExecFull":{"seq":31,"timestamp":829609969,"pid":2837766,"ppid":2837764,"pgid":2837766,"filename":"/run/current-system/sw/bin/sleep","args":"sleep 0.25"}}
+{"Exit":{"seq":32,"timestamp":1081134659,"pid":2837766,"ppid":2837764,"pgid":2837766}}
+{"Fork":{"seq":33,"timestamp":1081293127,"parent_pid":2837764,"child_pid":2837767,"parent_pgid":2837748}}
+{"ExecFull":{"seq":36,"timestamp":1081752212,"pid":2837767,"ppid":2837764,"pgid":2837767,"filename":"/run/current-system/sw/bin/curl","args":"curl -s -X GET example.com -o /dev/null -w %{http_code}"}}
+{"Exit":{"seq":37,"timestamp":1158419511,"pid":2837767,"ppid":2837764,"pgid":2837767}}
+{"Fork":{"seq":38,"timestamp":1158555580,"parent_pid":2837764,"child_pid":2837769,"parent_pgid":2837748}}
+{"Exit":{"seq":39,"timestamp":1159095554,"pid":2837769,"ppid":2837764,"pgid":2837769}}
+{"Exit":{"seq":40,"timestamp":1159379491,"pid":2837764,"ppid":2837748,"pgid":2837764}}
