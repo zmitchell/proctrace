@@ -17,6 +17,12 @@
       "cargo-nextest": {
         "pkg-path": "cargo-nextest"
       },
+      "clang": {
+        "pkg-path": "clang",
+        "systems": [
+          "aarch64-darwin"
+        ]
+      },
       "clippy": {
         "pkg-path": "clippy",
         "pkg-group": "rust-toolchain"
@@ -30,6 +36,12 @@
       },
       "just": {
         "pkg-path": "just"
+      },
+      "libiconv": {
+        "pkg-path": "libiconv",
+        "systems": [
+          "aarch64-darwin"
+        ]
       },
       "mermaid-cli": {
         "pkg-path": "mermaid-cli"
@@ -766,6 +778,36 @@
       "priority": 5
     },
     {
+      "attr_path": "clang",
+      "broken": false,
+      "derivation": "/nix/store/56hwjchncj4wmar596y943har8yavqrm-clang-wrapper-16.0.6.drv",
+      "description": "C language family frontend for LLVM (wrapper script)",
+      "install_id": "clang",
+      "license": "NCSA",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=cb9a96f23c491c081b38eab96d22fa958043c9fa",
+      "name": "clang-wrapper-16.0.6",
+      "pname": "clang",
+      "rev": "cb9a96f23c491c081b38eab96d22fa958043c9fa",
+      "rev_count": 662544,
+      "rev_date": "2024-08-04T23:25:57Z",
+      "scrape_date": "2024-08-07T02:06:32Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "wrapper-16.0.6",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/wsgvg07q93xmaqp6ln58kzr75rg6jm40-clang-wrapper-16.0.6"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
       "attr_path": "gcc",
       "broken": false,
       "derivation": "/nix/store/m8gjaqzl4m8yfraszibj2rss0r3w0whb-gcc-wrapper-13.3.0.drv",
@@ -927,6 +969,37 @@
         "out": "/nix/store/kmcl4c1cdl1m7hwmwcgl003lmwsy249v-just-1.34.0"
       },
       "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "libiconv",
+      "broken": false,
+      "derivation": "/nix/store/qb9fi4vz1p7f6rpc97lfl9mv1v74pd0f-libiconv-99.drv",
+      "description": "Iconv(3) implementation",
+      "install_id": "libiconv",
+      "license": "[ BSD-2-Clause, BSD-3-Clause, APSL-1.0 ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=cb9a96f23c491c081b38eab96d22fa958043c9fa",
+      "name": "libiconv-99",
+      "pname": "libiconv",
+      "rev": "cb9a96f23c491c081b38eab96d22fa958043c9fa",
+      "rev_count": 662544,
+      "rev_date": "2024-08-04T23:25:57Z",
+      "scrape_date": "2024-08-07T02:06:32Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "99",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/d9v7sk376qkv2q9y0w5gn6yyy94qnp0k-libiconv-99-dev",
+        "out": "/nix/store/zrp98d2dm0zix7ghj1v0bz7hp7a0h134-libiconv-99"
+      },
+      "system": "aarch64-darwin",
       "group": "toplevel",
       "priority": 5
     },

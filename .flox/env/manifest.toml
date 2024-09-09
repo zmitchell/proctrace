@@ -12,6 +12,8 @@ rustfmt.pkg-path = "rustfmt"
 rustfmt.pkg-group = "rust-toolchain"
 rust-lib-src.pkg-path = "rustPlatform.rustLibSrc"
 rust-lib-src.pkg-group = "rust-toolchain"
+libiconv.pkg-path = "libiconv"
+libiconv.systems = ["aarch64-darwin"]
 
 # rust-analyzer goes in its own group because it's updated
 # on a different cadence from the compiler and doesn't need
