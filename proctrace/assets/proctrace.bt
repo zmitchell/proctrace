@@ -68,9 +68,21 @@ tracepoint:syscalls:sys_enter_execve
 {
   $task = (struct task_struct *)curtask;
   $ts = elapsed;
-  printf("EXEC: ts=%u,pid=%d,ppid=%d,pgid=%d\n", $ts, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
+  @execs[$tid] = $ts;
+  // We don't have access to this data in the exit hook, so we print it now
+  // and if it's not relevant we will discard it on the proctrace side, and
+  // if it *is* relevant, it will get reordered.
   printf("EXEC_ARGS: ts=%u,pid=%d,", $ts, $task->tgid);
   join(args.argv);
+}
+
+tracepoint:syscalls:sys_exit_execve
+{
+  if (args.ret != -1) {
+    $task = (struct task_struct *)curtask;
+    $ts = @execs[tid];
+    printf("EXEC: ts=%u,pid=%d,ppid=%d,pgid=%d\n", $ts, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid);
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -96,14 +108,18 @@ tracepoint:syscalls:sys_exit_setsid
   $task = (struct task_struct *)curtask;
   $session = args.ret;
   $ts = elapsed;
-  printf("SETSID: ts=%u,pid=%d,ppid=%d,pgid=%d,sid=%d\n", $ts, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid, $session);
+  if ($session != -1) {
+    printf("SETSID: ts=%u,pid=%d,ppid=%d,pgid=%d,sid=%d\n", $ts, $task->tgid, $task->real_parent->tgid, $task->group_leader->tgid, $session);
+  }
 }
 
 tracepoint:syscalls:sys_exit_setpgid
 {
   $task = (struct task_struct *)curtask;
   $ts = elapsed;
-  printf("SETPGID: ts=%u,pid=%d,ppid=%d,pgid=%d\n", $ts, $task->tgid, $task->real_parent->tgid, args.ret);
+  if (args.ret != -1) {
+    printf("SETPGID: ts=%u,pid=%d,ppid=%d,pgid=%d\n", $ts, $task->tgid, $task->real_parent->tgid, args.ret);
+  }
 }
 
 END {
