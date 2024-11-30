@@ -1,6 +1,7 @@
 use std::{
     collections::VecDeque,
     io::{Read, Write},
+    path::Path,
 };
 
 use anyhow::{anyhow, Context};
@@ -88,6 +89,20 @@ fn render_by_process<T>(ingester: EventIngester<T>, mut writer: impl Write) -> R
     Ok(())
 }
 
+fn exec_command(filename: &str, args: &ExecArgsKind) -> String {
+    let joined = args.joined();
+    let stripped = match joined.strip_prefix(filename) {
+        Some(args) => args.to_string(),
+        None => joined,
+    };
+    let path = Path::new(filename);
+    let exe = path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or(filename);
+    format!("{exe} {stripped}")
+}
+
 /// Try to exact some kind of displayable title for the events contained in the buffer.
 fn extract_displayable_buffer_header(pid: i32, events: &VecDeque<Event>) -> Result<String, Error> {
     let n_events = events.len();
@@ -102,30 +117,28 @@ fn extract_displayable_buffer_header(pid: i32, events: &VecDeque<Event>) -> Resu
         {
             // A single fork event, display the fork info
             Ok(format!("PID {child_pid}, forked from {parent_pid}"))
-        } else if let Event::Exec { ref cmdline, .. } = events[0] {
+        } else if let Event::ExecFull {
+            ref filename,
+            ref args,
+            ..
+        } = events[0]
+        {
             // A single exec event, display the exec args
-            Ok(format!(
-                "PID {pid}: {}",
-                cmdline
-                    .as_ref()
-                    .map(|args| args.to_string())
-                    .unwrap_or("<command unavailable>".to_string())
-            ))
+            Ok(format!("PID {pid}: {}", exec_command(filename, args)))
         } else {
             unreachable!("all event buffers should begin with either fork or exec");
         }
-    } else if matches!(events[0], Event::Fork { .. }) && matches!(events[1], Event::Exec { .. }) {
-        // A fork and an initial exec, display the exec args
-        let Event::Exec { ref cmdline, .. } = events[1] else {
-            unreachable!("just checked that this was an exec");
+    } else if matches!(events[0], Event::Fork { .. }) && matches!(events[1], Event::ExecFull { .. })
+    {
+        let Event::ExecFull {
+            ref filename,
+            ref args,
+            ..
+        } = events[1]
+        else {
+            unreachable!();
         };
-        Ok(format!(
-            "PID {pid}: {}",
-            cmdline
-                .as_ref()
-                .map(|args| args.to_string())
-                .unwrap_or("<command unavailable>".to_string())
-        ))
+        Ok(format!("PID {pid}: {}", exec_command(filename, args)))
     } else if matches!(events[0], Event::Fork { .. }) {
         // A fork followed by something other than exec, display the fork info
         let Event::Fork {
@@ -203,7 +216,7 @@ fn parse_buffer(events: &[Event]) -> Result<MermaidItem, Error> {
     let exec_indices = events
         .iter()
         .enumerate()
-        .filter_map(|(i, event)| if event.is_exec() { Some(i) } else { None })
+        .filter_map(|(i, event)| if event.is_exec_full() { Some(i) } else { None })
         .collect::<Vec<_>>();
     if exec_indices.is_empty() {
         extract_fork_span(events)
@@ -246,22 +259,15 @@ fn extract_single_exec_span(events: &[Event], exec_index: usize) -> Result<Merma
         .last()
         .ok_or(anyhow!("buffer was empty after checking"))?
         .timestamp();
-    let cmdline = events
+    let args = events
         .get(exec_index)
         .and_then(|event| match event {
-            Event::Exec { cmdline, .. } => Some(cmdline),
+            Event::ExecFull { args, .. } => Some(args),
             _ => None,
         })
-        .ok_or(anyhow!("failed to find exec for span"))?;
-    let label = match cmdline {
-        Some(args) => match args {
-            ExecArgsKind::Joined(args) => format!("[{pid}] {args}"),
-            ExecArgsKind::Args(args) => {
-                format!("[{pid}] {}", args.join(" "))
-            }
-        },
-        None => "<command unavailable>".to_string(),
-    };
+        .ok_or(anyhow!("failed to find exec for span"))?
+        .joined();
+    let label = format!("[{pid}] {args}");
     let span = Span {
         pid,
         start,
