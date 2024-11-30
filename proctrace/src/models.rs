@@ -329,6 +329,7 @@ impl EventStore {
         pids_and_buffers.into_iter()
     }
 
+    #[allow(dead_code)]
     pub fn print_buffers(&self) {
         self.inner.iter().for_each(|(pid, buffer)| {
             println!("Buffer for PID: {pid}");
