@@ -85,7 +85,8 @@
       "allow": {
         "licenses": []
       },
-      "semver": {}
+      "semver": {},
+      "cuda-detection": false
     },
     "services": {
       "docs": {
