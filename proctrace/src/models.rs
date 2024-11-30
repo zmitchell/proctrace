@@ -20,6 +20,15 @@ pub enum ExecArgsKind {
     Args(Vec<String>),
 }
 
+impl ExecArgsKind {
+    pub fn joined(&self) -> String {
+        match self {
+            ExecArgsKind::Joined(args) => args.clone(),
+            ExecArgsKind::Args(args) => args.join(" "),
+        }
+    }
+}
+
 impl Display for ExecArgsKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -189,6 +198,10 @@ impl Event {
 
     pub fn is_exec(&self) -> bool {
         matches!(self, Event::Exec { .. })
+    }
+
+    pub fn is_exec_full(&self) -> bool {
+        matches!(self, Event::ExecFull { .. })
     }
 
     #[allow(dead_code)]
