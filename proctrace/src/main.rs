@@ -53,7 +53,6 @@ fn main() -> Result<(), Error> {
                 writer,
             )
             .context("failed while recording events")?;
-            ingester.tracked_events().print_buffers();
             ingester.post_process_buffers();
             if args.raw {
                 eprintln!(
@@ -65,7 +64,6 @@ fn main() -> Result<(), Error> {
                 );
             } else {
                 let writer = new_buffered_output_stream(&args.output_path)?;
-                ingester.tracked_events().print_buffers();
                 render_sequential(ingester, writer)?;
             }
         }
